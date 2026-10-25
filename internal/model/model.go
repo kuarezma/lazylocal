@@ -96,6 +96,7 @@ type Exchange struct {
 	Truncated  bool             `json:"truncated"`
 	ReplayedOf string           `json:"replayed_of,omitempty"` // Original Exchange ID if this was triggered via Replay
 	Error      string           `json:"error,omitempty"`
+	RawReqHeaders http.Header   `json:"-"`                     // Raw request headers kept in memory for replay
 }
 
 // EventType enumerates real-time bus events for TUI and Web SSE consumers.

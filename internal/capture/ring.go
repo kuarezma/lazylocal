@@ -5,7 +5,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/ugur/lazylocal/internal/model"
+	"github.com/kuarezma/lazylocal/internal/model"
 )
 
 // MaxBodyBytes is the maximum number of body bytes retained in an Exchange.

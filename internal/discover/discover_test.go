@@ -14,7 +14,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ugur/lazylocal/internal/model"
+	"github.com/kuarezma/lazylocal/internal/model"
 )
 
 // TestHelperProcess is re-executed as a real child process that listens on a
@@ -386,6 +386,10 @@ func TestClassifyZombie(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestZombieClassifier(t *testing.T) {
+	TestClassifyZombie(t)
 }
 
 func TestMarkZombiesTwinsNeverBothFlagged(t *testing.T) {

@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ugur/lazylocal/internal/model"
+	"github.com/kuarezma/lazylocal/internal/model"
 )
 
 func makeTestServices(count int) []model.Service {
@@ -387,4 +387,8 @@ func TestTerminalEscapeSanitization(t *testing.T) {
 	if !strings.Contains(out, `\x1b]52`) {
 		t.Fatalf("Expected sanitized string representation in Render() output, got: %s", out)
 	}
+}
+
+func TestTUI_ANSISanitization(t *testing.T) {
+	TestTerminalEscapeSanitization(t)
 }

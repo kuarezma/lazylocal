@@ -11,7 +11,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/ugur/lazylocal/internal/model"
+	"github.com/kuarezma/lazylocal/internal/model"
 )
 
 // DefaultPins returns the 10 default pinned services ported from local-apps-hub.

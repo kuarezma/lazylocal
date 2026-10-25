@@ -17,7 +17,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ugur/lazylocal/internal/model"
+	"github.com/kuarezma/lazylocal/internal/model"
 )
 
 // Listener is one listening TCP port attributed to a process.

@@ -17,8 +17,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/ugur/lazylocal/internal/capture"
-	"github.com/ugur/lazylocal/internal/model"
+	"github.com/kuarezma/lazylocal/internal/capture"
+	"github.com/kuarezma/lazylocal/internal/model"
 )
 
 var idCounter uint64
@@ -108,12 +108,13 @@ func (c *captureReader) Close() error {
 
 // Proxy is a dynamic .localhost HTTP reverse proxy with tap & replay capabilities.
 type Proxy struct {
-	ring      *capture.RingBuffer
-	bus       *model.Bus
-	mu        sync.RWMutex
-	services  []model.Service
-	client    *http.Client
-	transport *http.Transport
+	ring         *capture.RingBuffer
+	bus          *model.Bus
+	mu           sync.RWMutex
+	services     []model.Service
+	client       *http.Client
+	transport    *http.Transport
+	redactMemory bool
 }
 
 // NewProxy creates a new reverse proxy instance.
@@ -151,6 +152,21 @@ func (p *Proxy) UpdateServices(services []model.Service) {
 
 	p.services = make([]model.Service, len(services))
 	copy(p.services, services)
+}
+
+// SetRedactMemory enables or disables zero-secret RAM retention by scrubbing
+// sensitive headers (Authorization, Cookie, X-Api-Key) from in-memory replay buffers.
+func (p *Proxy) SetRedactMemory(v bool) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.redactMemory = v
+}
+
+// RedactMemory returns whether in-memory header redaction is enabled.
+func (p *Proxy) RedactMemory() bool {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	return p.redactMemory
 }
 
 // findService looks up a service matching host or subdomain.
@@ -319,6 +335,12 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				},
 				Truncated: reqTruncated || respTruncated,
 				Error:     finalErr,
+				RawReqHeaders: origRawHeaders,
+			}
+
+			if p.RedactMemory() {
+				ex.RawReqHeaders = maskHeaders(r.Header)
+				ex.Req.RawHeaders = ex.RawReqHeaders
 			}
 
 			if p.ring != nil {
@@ -413,8 +435,10 @@ func (p *Proxy) Replay(ctx context.Context, exchangeID string) (*model.Exchange,
 		return nil, fmt.Errorf("failed to create replay request: %w", err)
 	}
 
-	// Use original unmasked headers if present
-	if origEx.Req.RawHeaders != nil {
+	// Use original unmasked headers if present (unless redactMemory was enabled)
+	if origEx.RawReqHeaders != nil {
+		req.Header = origEx.RawReqHeaders.Clone()
+	} else if origEx.Req.RawHeaders != nil {
 		req.Header = origEx.Req.RawHeaders.Clone()
 	} else {
 		req.Header = make(http.Header)
@@ -455,6 +479,12 @@ func (p *Proxy) Replay(ctx context.Context, exchangeID string) (*model.Exchange,
 			Truncated:   origEx.Req.Truncated,
 			ContentType: req.Header.Get("Content-Type"),
 		},
+		RawReqHeaders: req.Header.Clone(),
+	}
+
+	if p.RedactMemory() {
+		newEx.RawReqHeaders = maskHeaders(req.Header)
+		newEx.Req.RawHeaders = newEx.RawReqHeaders
 	}
 
 	if err != nil {
@@ -625,4 +655,24 @@ func CurlCommand(ex model.Exchange) string {
 	}
 
 	return strings.Join(parts, " \\\n")
+}
+
+// maskHeaders creates a clone of http.Header with sensitive headers replaced with "REDACTED".
+func maskHeaders(h http.Header) http.Header {
+	if h == nil {
+		return make(http.Header)
+	}
+	masked := make(http.Header, len(h))
+	for k, v := range h {
+		lower := strings.ToLower(k)
+		switch lower {
+		case "authorization", "cookie", "set-cookie", "x-api-key", "proxy-authorization":
+			masked[k] = []string{"REDACTED"}
+		default:
+			cp := make([]string, len(v))
+			copy(cp, v)
+			masked[k] = cp
+		}
+	}
+	return masked
 }

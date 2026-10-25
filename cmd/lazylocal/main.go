@@ -20,14 +20,14 @@ import (
 	"text/tabwriter"
 	"time"
 
-	"github.com/ugur/lazylocal/internal/capture"
-	"github.com/ugur/lazylocal/internal/config"
-	"github.com/ugur/lazylocal/internal/discover"
-	"github.com/ugur/lazylocal/internal/model"
-	"github.com/ugur/lazylocal/internal/procs"
-	"github.com/ugur/lazylocal/internal/proxy"
-	"github.com/ugur/lazylocal/internal/tui"
-	"github.com/ugur/lazylocal/internal/web"
+	"github.com/kuarezma/lazylocal/internal/capture"
+	"github.com/kuarezma/lazylocal/internal/config"
+	"github.com/kuarezma/lazylocal/internal/discover"
+	"github.com/kuarezma/lazylocal/internal/model"
+	"github.com/kuarezma/lazylocal/internal/procs"
+	"github.com/kuarezma/lazylocal/internal/proxy"
+	"github.com/kuarezma/lazylocal/internal/tui"
+	"github.com/kuarezma/lazylocal/internal/web"
 )
 
 const version = "v0.1.0"
@@ -501,6 +501,7 @@ func main() {
 	pinsFlag := fs.String("pins", "", "Path to pins.toml configuration")
 	intervalFlag := fs.Duration("interval", 2*time.Second, "Discovery scanner periodic interval")
 	headlessFlag := fs.Bool("headless", false, "Run in background headless mode (no TUI)")
+	redactMemory := fs.Bool("redact-memory", false, "Scrub sensitive headers (Authorization, Cookie, X-Api-Key) from in-memory replay buffers")
 	versionFlag := fs.Bool("version", false, "Print version and exit")
 
 	if err := fs.Parse(os.Args[1:]); err != nil {
@@ -516,6 +517,11 @@ func main() {
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to initialize lazylocal: %v\n", err)
 		os.Exit(1)
+	}
+
+	if *redactMemory {
+		proxySrv := eng.Proxy()
+		proxySrv.SetRedactMemory(*redactMemory)
 	}
 
 	if err := eng.Start(); err != nil {
@@ -754,6 +760,7 @@ FLAGS:
   --pins <path>        Path to pins.toml configuration (default: pins.toml or builtin)
   --interval <dur>     Discovery scanner periodic interval (default: 2s)
   --headless           Run in background headless mode without TUI
+  --redact-memory      Scrub sensitive headers (Authorization, Cookie, X-Api-Key) from in-memory replay buffers
   --version, -v        Print version and exit`)
 }
 

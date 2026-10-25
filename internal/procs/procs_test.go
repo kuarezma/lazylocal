@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ugur/lazylocal/internal/model"
+	"github.com/kuarezma/lazylocal/internal/model"
 )
 
 func TestKillServiceRefusesInvalidPID(t *testing.T) {

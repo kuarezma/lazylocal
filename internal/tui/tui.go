@@ -8,7 +8,7 @@ import (
 	"sync"
 	"unicode/utf8"
 
-	"github.com/ugur/lazylocal/internal/model"
+	"github.com/kuarezma/lazylocal/internal/model"
 )
 
 // ActionType represents commands dispatched by TUI user input.

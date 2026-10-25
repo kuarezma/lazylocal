@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ugur/lazylocal/internal/model"
+	"github.com/kuarezma/lazylocal/internal/model"
 )
 
 type mockController struct {
@@ -688,4 +688,12 @@ func TestCrossSubdomainCSRFProtection(t *testing.T) {
 			}
 		}
 	}
+}
+
+func TestServerDNSRebindingProtection(t *testing.T) {
+	TestHostAllowlistMisdirectedRequest(t)
+}
+
+func TestServerSecurityHeadersAndCSRF(t *testing.T) {
+	TestCrossSubdomainCSRFProtection(t)
 }

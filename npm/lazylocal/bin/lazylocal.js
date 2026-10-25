@@ -113,7 +113,7 @@ Please build or install lazylocal using one of the following methods:
   1) Local build:  go build -o dist/lazylocal${isWin ? '.exe' : ''} ./cmd/lazylocal
   2) Go install:   go install github.com/kuarezma/lazylocal/cmd/lazylocal@latest
   3) Installer:    ${isWin ? 'irm https://raw.githubusercontent.com/kuarezma/lazylocal/main/install.ps1 | iex' : 'curl -fsSL https://raw.githubusercontent.com/kuarezma/lazylocal/main/install.sh | sh'}
-  4) Homebrew:     brew install ugur/tap/lazylocal (macOS/Linux)
+  4) Homebrew:     brew install kuarezma/tap/lazylocal (macOS/Linux)
 `);
     process.exit(1);
   }

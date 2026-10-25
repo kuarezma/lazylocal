@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/ugur/lazylocal/internal/model"
+	"github.com/kuarezma/lazylocal/internal/model"
 )
 
 // GitInfo is the git identity of a working directory.

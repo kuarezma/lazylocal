@@ -43,7 +43,7 @@ irm https://raw.githubusercontent.com/kuarezma/lazylocal/main/install.ps1 | iex
 curl -fsSL https://raw.githubusercontent.com/kuarezma/lazylocal/main/install.sh | sh
 
 # Or install via Homebrew (macOS & Linux):
-brew install ugur/tap/lazylocal
+brew install kuarezma/tap/lazylocal
 
 # Or with Go:
 go install github.com/kuarezma/lazylocal/cmd/lazylocal@latest
@@ -161,7 +161,7 @@ irm https://raw.githubusercontent.com/kuarezma/lazylocal/main/install.ps1 | iex
 
 ### Option 3: Homebrew (macOS & Linux)
 ```sh
-brew install ugur/tap/lazylocal
+brew install kuarezma/tap/lazylocal
 ```
 
 ### Option 4: Go Install
@@ -209,6 +209,7 @@ lazylocal version
 - `--pins <path>`: Path to custom pinned services configuration (default: `pins.toml`).
 - `--interval <dur>`: Background scanner polling interval (default: `2s`).
 - `--headless`: Run in background headless mode without launching the TUI.
+- `--redact-memory`: Scrub sensitive headers (Authorization, Cookie, X-Api-Key) from in-memory replay buffers for zero-secret RAM retention.
 - `--version`: Print version information and exit.
 
 ---
@@ -225,14 +226,20 @@ lazylocal version
 
 ## 🛡️ Security Architecture
 
+For complete threat models, architecture diagrams, and the automated regression suite, see [**SECURITY.md**](SECURITY.md).
+
 1. **Strict Loopback Binding (`127.0.0.1`)**:
    `lazylocal` binds exclusively to `127.0.0.1`. It never listens on `0.0.0.0` or public network interfaces.
 2. **DNS Rebinding Protection (HTTP 421)**:
    The reverse proxy strictly validates incoming `Host` headers. Any request targeting external domains (e.g., `evil.com`) is immediately rejected with `421 Misdirected Request`.
-3. **Constant-Time CSRF Tokens & Origin Allowlist**:
+3. **Subdomain-Isolated Constant-Time CSRF Tokens & Origin Allowlist**:
    Destructive API endpoints (`/api/kill`, `/api/replay`, `/api/sweep-zombies`) enforce constant-time CSRF token comparison (`crypto/subtle`) and validate that incoming `Origin` headers strictly match loopback or `*.localhost`.
-4. **Header Redaction**:
-   Sensitive headers (`Authorization`, `Cookie`, `X-Api-Key`) are redacted to `"REDACTED"` in display outputs to prevent accidental leakage in screenshots and logs.
+4. **Header Masking & Zero-Secret RAM Retention (`--redact-memory`)**:
+   Sensitive headers (`Authorization`, `Cookie`, `Set-Cookie`, `X-Api-Key`, `Proxy-Authorization`) are redacted to `"REDACTED"` in all display outputs. With `--redact-memory`, secrets are immediately scrubbed from in-memory replay buffers as well.
+5. **AI Agent Shell Protection & Graceful Zombie Sweep**:
+   Process termination checks `PGID == PID` before signaling process groups, protecting parent AI agent shells (Claude Code, Cursor, Codex). Windows and Unix processes are cleanly signaled before escalation.
+6. **Terminal Escape Sanitization**:
+   Untrusted HTTP headers and paths are stripped of ANSI/OSC/CSI control sequences to prevent terminal emulator injection.
 
 ---
 

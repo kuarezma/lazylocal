@@ -16,8 +16,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ugur/lazylocal/internal/capture"
-	"github.com/ugur/lazylocal/internal/model"
+	"github.com/kuarezma/lazylocal/internal/capture"
+	"github.com/kuarezma/lazylocal/internal/model"
 )
 
 func TestDNSRebindingProtection(t *testing.T) {
@@ -289,6 +289,7 @@ func TestAuthorizationRedactionAndReplay(t *testing.T) {
 	if err != nil {
 		t.Fatalf("initial request failed: %v", err)
 	}
+	io.Copy(io.Discard, resp.Body)
 	_ = resp.Body.Close()
 
 	// 2. Check mask in captured exchange
@@ -335,6 +336,132 @@ func TestAuthorizationRedactionAndReplay(t *testing.T) {
 	// Replay call
 	if calls[1].Auth != "Bearer secret123" || calls[1].Body != `{"username":"admin"}` {
 		t.Fatalf("unexpected call 2 (replay): %+v", calls[1])
+	}
+}
+
+func TestProxyDNSRebindingProtection(t *testing.T) {
+	TestDNSRebindingProtection(t)
+}
+
+func TestProxyHeaderMaskingAndReplay(t *testing.T) {
+	TestAuthorizationRedactionAndReplay(t)
+}
+
+func TestProxyRedactMemory(t *testing.T) {
+	var mu sync.Mutex
+	var calls []struct {
+		Auth   string
+		APIKey string
+		Cookie string
+		Body   string
+	}
+
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		mu.Lock()
+		calls = append(calls, struct {
+			Auth   string
+			APIKey string
+			Cookie string
+			Body   string
+		}{
+			Auth:   r.Header.Get("Authorization"),
+			APIKey: r.Header.Get("X-Api-Key"),
+			Cookie: r.Header.Get("Cookie"),
+			Body:   string(body),
+		})
+		mu.Unlock()
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"result":"ok"}`))
+	}))
+	defer backend.Close()
+
+	u, _ := url.Parse(backend.URL)
+	port, _ := strconv.Atoi(u.Port())
+
+	ring := capture.NewRingBuffer(10)
+	bus := model.NewBus()
+	p := NewProxy(ring, bus)
+	p.SetRedactMemory(true)
+	p.UpdateServices([]model.Service{
+		{ID: "auth-svc", Name: "auth", Port: port, Running: true},
+	})
+
+	proxyServer := httptest.NewServer(p)
+	defer proxyServer.Close()
+
+	// 1. Initial proxy call with sensitive credentials
+	req, _ := http.NewRequest("POST", proxyServer.URL+"/login", strings.NewReader(`{"username":"admin"}`))
+	req.Host = "auth.localhost"
+	req.Header.Set("Authorization", "Bearer secret123")
+	req.Header.Set("X-Api-Key", "super-secret-key")
+	req.Header.Set("Cookie", "session=topsecret")
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := proxyServer.Client().Do(req)
+	if err != nil {
+		t.Fatalf("initial request failed: %v", err)
+	}
+	io.Copy(io.Discard, resp.Body)
+	_ = resp.Body.Close()
+
+	// 2. Check captured exchange in memory
+	exchanges := ring.List("auth-svc", false)
+	if len(exchanges) != 1 {
+		t.Fatalf("expected 1 exchange recorded, got %d", len(exchanges))
+	}
+	ex := exchanges[0]
+
+	// Verify in-memory RawReqHeaders and Req.RawHeaders are REDACTED
+	if ex.RawReqHeaders.Get("Authorization") != "REDACTED" {
+		t.Fatalf("expected ex.RawReqHeaders Authorization to be REDACTED, got: %s", ex.RawReqHeaders.Get("Authorization"))
+	}
+	if ex.Req.RawHeaders.Get("Authorization") != "REDACTED" {
+		t.Fatalf("expected ex.Req.RawHeaders Authorization to be REDACTED, got: %s", ex.Req.RawHeaders.Get("Authorization"))
+	}
+	if ex.RawReqHeaders.Get("X-Api-Key") != "REDACTED" {
+		t.Fatalf("expected ex.RawReqHeaders X-Api-Key to be REDACTED, got: %s", ex.RawReqHeaders.Get("X-Api-Key"))
+	}
+	if ex.RawReqHeaders.Get("Cookie") != "REDACTED" {
+		t.Fatalf("expected ex.RawReqHeaders Cookie to be REDACTED, got: %s", ex.RawReqHeaders.Get("Cookie"))
+	}
+
+	// 3. Trigger Replay
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	replayEx, err := p.Replay(ctx, ex.ID)
+	if err != nil {
+		t.Fatalf("replay failed: %v", err)
+	}
+
+	if replayEx.ReplayedOf != ex.ID {
+		t.Fatalf("expected ReplayedOf %s, got %s", ex.ID, replayEx.ReplayedOf)
+	}
+
+	// 4. Verify backend received live secret on initial call, but "REDACTED" on Replay
+	mu.Lock()
+	defer mu.Unlock()
+	if len(calls) != 2 {
+		t.Fatalf("expected 2 backend calls, got %d", len(calls))
+	}
+
+	// First call (live forward) received original credentials
+	if calls[0].Auth != "Bearer secret123" || calls[0].APIKey != "super-secret-key" || calls[0].Cookie != "session=topsecret" {
+		t.Fatalf("unexpected live call 1: %+v", calls[0])
+	}
+
+	// Replay call must NOT have sent the raw secret - must be REDACTED
+	if calls[1].Auth != "REDACTED" {
+		t.Fatalf("expected replay to send REDACTED for Authorization, got %q", calls[1].Auth)
+	}
+	if calls[1].APIKey != "REDACTED" {
+		t.Fatalf("expected replay to send REDACTED for X-Api-Key, got %q", calls[1].APIKey)
+	}
+	if calls[1].Cookie != "REDACTED" {
+		t.Fatalf("expected replay to send REDACTED for Cookie, got %q", calls[1].Cookie)
 	}
 }
 
@@ -676,6 +803,7 @@ func BenchmarkProxyLatency(b *testing.B) {
 	for i := 0; i < 10; i++ {
 		resp, err := client.Do(req)
 		if err == nil {
+			io.Copy(io.Discard, resp.Body)
 			_ = resp.Body.Close()
 		}
 	}
@@ -692,6 +820,7 @@ func BenchmarkProxyLatency(b *testing.B) {
 		if err != nil {
 			b.Fatalf("benchmark request failed: %v", err)
 		}
+		io.Copy(io.Discard, resp.Body)
 		_ = resp.Body.Close()
 		latencies = append(latencies, lat)
 	}

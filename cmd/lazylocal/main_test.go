@@ -15,7 +15,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ugur/lazylocal/internal/model"
+	"github.com/kuarezma/lazylocal/internal/model"
 )
 
 func captureStdout(t *testing.T, fn func() error) (string, error) {

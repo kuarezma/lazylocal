@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ugur/lazylocal/internal/model"
+	"github.com/kuarezma/lazylocal/internal/model"
 )
 
 // TestHelperProcess is re-executed as a child process; it is a no-op in a

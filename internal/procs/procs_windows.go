@@ -11,7 +11,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/ugur/lazylocal/internal/model"
+	"github.com/kuarezma/lazylocal/internal/model"
 )
 
 // KillService stops svc on Windows: gentle termination via taskkill (/T) first,

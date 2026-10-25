@@ -14,7 +14,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ugur/lazylocal/internal/model"
+	"github.com/kuarezma/lazylocal/internal/model"
 )
 
 //go:embed static/index.html
