@@ -1,0 +1,57 @@
+# .goreleaser.yaml
+version: 2
+
+project_name: lazylocal
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: lazylocal
+    main: ./cmd/lazylocal
+    binary: lazylocal
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - darwin
+      - linux
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w -X main.version={{.Version}}
+
+archives:
+  - format: tar.gz
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    files:
+      - README.md
+      - LICENSE*
+      - pins.toml
+
+checksum:
+  name_template: "checksums.txt"
+
+snapshot:
+  version_template: "{{ incpatch .Version }}-next"
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+
+brews:
+  - repository:
+      owner: ugur
+      name: homebrew-tap
+      branch: main
+    name: lazylocal
+    homepage: "https://github.com/kuarezma/lazylocal"
+    description: "Zero-config local development reverse proxy with HTTP tap & replay and zombie process cleaner"
+    license: "MIT"
+    folder: Formula
+    test: |
+      system "#{bin}/lazylocal --version"

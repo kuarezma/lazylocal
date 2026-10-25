@@ -1,0 +1,42 @@
+{
+  "name": "lazylocal",
+  "version": "0.1.0",
+  "description": "Zero-config local development reverse proxy with tap & replay and zombie process cleaner",
+  "bin": {
+    "lazylocal": "bin/lazylocal.js"
+  },
+  "scripts": {
+    "start": "node bin/lazylocal.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kuarezma/lazylocal.git"
+  },
+  "keywords": [
+    "localhost",
+    "reverse-proxy",
+    "local-development",
+    "tui",
+    "http-replay",
+    "developer-tools",
+    "ai-agents"
+  ],
+  "author": "Uğur Yaşayan",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/kuarezma/lazylocal/issues"
+  },
+  "homepage": "https://github.com/kuarezma/lazylocal#readme",
+  "preferGlobal": true,
+  "engines": {
+    "node": ">=16.0.0"
+  },
+  "os": [
+    "darwin",
+    "linux"
+  ],
+  "cpu": [
+    "x64",
+    "arm64"
+  ]
+}

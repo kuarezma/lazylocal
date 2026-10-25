@@ -1,0 +1,122 @@
+# pins.toml - lazylocal pinned applications configuration
+# Ported from local-apps-hub
+
+[[pins]]
+id = "matematik"
+name = "matematik"
+host = "matematik.localhost"
+port = 8775
+category = "Okul & Eğitim"
+badge = "Eğitim Motoru"
+description = "MEB Matematik Master Doküman Merkezi — 5, 6, 7, 8. Sınıf & LGS/YKS ders materyalleri, çalışma kağıdı ve interaktif yönetim paneli."
+color = "#3b82f6"
+app_path = "~/Applications/Matematik Doküman Merkezi.app"
+health_url = "http://127.0.0.1:8775/api/health"
+
+[[pins]]
+id = "koruyucu"
+name = "koruyucu"
+host = "koruyucu.localhost"
+port = 8765
+category = "Sistem & Araçlar"
+badge = "Bekçi & Güvenlik"
+description = "Mac Sistem Koruyucu — macOS arka plan süreçleri, bellek/CPU tüketimi ve anlık kilitlenme önleyici sistem kalkanı."
+color = "#10b981"
+app_path = "/Applications/Mac Sistem Koruyucu.app"
+health_url = "http://127.0.0.1:8765/api/stats"
+
+[[pins]]
+id = "donanim"
+name = "donanim"
+host = "donanim.localhost"
+port = 8899
+category = "Sistem & Araçlar"
+badge = "Donanım Analizi"
+description = "Mac Donanım Özellikleri — Apple Silicon M3 çip mimarisi, termal durum, pil sağlığı ve detaylı donanım dökümü."
+color = "#8b5cf6"
+app_path = "~/Applications/Mac Donanım Özellikleri.app"
+health_url = "http://127.0.0.1:8899/api/health"
+
+[[pins]]
+id = "benchmark"
+name = "benchmark"
+host = "benchmark.localhost"
+port = 8420
+category = "Sistem & Araçlar"
+badge = "Performans Kıyaslama"
+description = "Benchmark Hub — Yapay zeka modelleri, token hızları ve donanım performans kıyaslama dashboard'u."
+color = "#f59e0b"
+app_path = "/Applications/Benchmark Hub.app"
+health_url = "http://127.0.0.1:8420/api/status"
+
+[[pins]]
+id = "supertoto"
+name = "supertoto"
+host = "supertoto.localhost"
+port = 4577
+category = "Analiz & Bot"
+badge = "Tahmin & Simülasyon"
+description = "SüperToto Dev — Next.js tabanlı bülten takip, formül filtreleme, kupon oluşturma ve maç simülasyon motoru."
+color = "#ec4899"
+app_path = "~/Applications/SüperToto.app"
+health_url = "http://127.0.0.1:4577"
+
+[[pins]]
+id = "fxpro"
+name = "fxpro"
+host = "fxpro.localhost"
+port = 8787
+category = "Analiz & Bot"
+badge = "Piyasa Tarayıcı"
+description = "FxPro Dashboard — Otomatik trading botu kontrol paneli, tarayıcı servisleri ve canlı veri akışı."
+color = "#06b6d4"
+app_path = "~/Applications/FxPro Dashboard.app"
+health_url = "http://127.0.0.1:8787/api/status"
+
+[[pins]]
+id = "calisma_plani"
+name = "calisma-plani"
+host = "calisma-plani.localhost"
+port = 1420
+category = "Okul & Eğitim"
+badge = "Zaman Yönetimi"
+description = "Haftalık Çalışma Planı — Tauri tabanlı yerel masaüstü haftalık ders, nöbet ve etkinlik takip uygulaması."
+color = "#6366f1"
+app_path = "/Applications/Haftalık Çalışma Planı.app"
+health_url = "http://127.0.0.1:1420"
+
+[[pins]]
+id = "hf_advisor"
+name = "hf-advisor"
+host = "hf-advisor.localhost"
+port = 8000
+category = "Yapay Zeka"
+badge = "AI Advisor"
+description = "HF Model Danışmanı — Hugging Face modelleri ve Mac M3 donanımına uygun açık kaynak model öneri asistanı."
+color = "#d946ef"
+app_path = "/Applications/HF Model Danışmanı.app"
+health_url = "http://127.0.0.1:8000"
+
+[[pins]]
+id = "ozelders"
+name = "ozelders"
+host = "ozelders.localhost"
+port = 0
+category = "Okul & Eğitim"
+badge = "Bulut Kütüphane"
+description = "Özel Ders Portalı — Bulut tabanlı özel ders materyalleri, interaktif çalışma fasikülleri ve online arşiv."
+color = "#14b8a6"
+app_path = "/Applications/Özel Ders Portalı.app"
+health_url = ""
+
+[[pins]]
+id = "icloud_google"
+name = "icloud-google"
+host = "icloud-google.localhost"
+port = 8910
+category = "Depolama & Bulut"
+badge = "20TB Ultra Aktarımı"
+description = "iCloud2Google Migration Hub — 2TB iCloud Aile Planı verilerini Google Ultra 20TB depolamaya telefon-bilgisayar senkron ve Wi-Fi korumalı taşıma merkezi."
+color = "#0ea5e9"
+app_path = "~/icloud-to-google-hub/start.sh"
+health_url = "http://127.0.0.1:8910/api/status"

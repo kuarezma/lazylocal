@@ -1,0 +1,1573 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>lazylocal Hub (hub.localhost)</title>
+  <script>window.__LAZYLOCAL_TOKEN__ = "{{CSRF_TOKEN}}";</script>
+  <style>
+    :root {
+      --bg-base: #0B0F19;
+      --bg-surface: #111827;
+      --bg-surface-hover: #1F2937;
+      --bg-surface-active: #283548;
+      --border-color: #1E293B;
+      --border-color-light: #334155;
+      --primary: #3730A3;
+      --primary-light: #4F46E5;
+      --primary-glow: rgba(79, 70, 229, 0.2);
+      --success: #10B981;
+      --success-glow: rgba(16, 185, 129, 0.2);
+      --danger: #EF4444;
+      --danger-glow: rgba(239, 68, 68, 0.2);
+      --warning: #F59E0B;
+      --info: #06B6D4;
+      --text-main: #F8FAFC;
+      --text-muted: #94A3B8;
+      --text-dim: #64748B;
+      --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      --radius-sm: 6px;
+      --radius-md: 10px;
+      --radius-lg: 14px;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: var(--bg-base);
+      color: var(--text-main);
+      font-family: var(--font-family);
+      line-height: 1.5;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow-x: hidden;
+    }
+
+    /* Top Navigation Header */
+    header {
+      background-color: rgba(17, 24, 39, 0.85);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border-color);
+      padding: 0.85rem 1.75rem;
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .brand-section {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .brand-logo {
+      width: 32px;
+      height: 32px;
+      background: linear-gradient(135deg, var(--primary-light), var(--primary));
+      border-radius: var(--radius-sm);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 0 16px var(--primary-glow);
+    }
+
+    .brand-logo svg {
+      width: 18px;
+      height: 18px;
+      fill: #FFF;
+    }
+
+    .brand-title {
+      font-size: 1.15rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .brand-badge {
+      background-color: var(--border-color);
+      color: var(--text-muted);
+      font-size: 0.75rem;
+      font-weight: 600;
+      padding: 0.15rem 0.5rem;
+      border-radius: 9999px;
+      border: 1px solid var(--border-color-light);
+      font-family: monospace;
+    }
+
+    .header-controls {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+
+    .sse-indicator {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      background-color: var(--bg-surface);
+      border: 1px solid var(--border-color);
+      padding: 0.35rem 0.75rem;
+      border-radius: 9999px;
+    }
+
+    .sse-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background-color: var(--success);
+      box-shadow: 0 0 8px var(--success-glow);
+      animation: pulse-dot 2s infinite ease-in-out;
+    }
+
+    .sse-dot.disconnected {
+      background-color: var(--danger);
+      box-shadow: 0 0 8px var(--danger-glow);
+      animation: none;
+    }
+
+    @keyframes pulse-dot {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.4; transform: scale(0.85); }
+    }
+
+    .token-pill {
+      font-family: monospace;
+      font-size: 0.75rem;
+      color: var(--text-dim);
+      background-color: rgba(30, 41, 59, 0.5);
+      border: 1px solid var(--border-color);
+      padding: 0.35rem 0.65rem;
+      border-radius: var(--radius-sm);
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+
+    /* Main Container */
+    main {
+      flex: 1;
+      padding: 1.5rem 1.75rem;
+      max-width: 1720px;
+      margin: 0 auto;
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      gap: 1.5rem;
+    }
+
+    /* Metric Cards Grid */
+    .metrics-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 1.25rem;
+    }
+
+    .metric-card {
+      background-color: var(--bg-surface);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-md);
+      padding: 1.25rem;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      transition: border-color 0.2s, transform 0.2s;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .metric-card:hover {
+      border-color: var(--border-color-light);
+      transform: translateY(-1px);
+    }
+
+    .metric-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 0.5rem;
+    }
+
+    .metric-title {
+      font-size: 0.825rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .metric-icon {
+      width: 28px;
+      height: 28px;
+      border-radius: var(--radius-sm);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background-color: var(--border-color);
+    }
+
+    .metric-icon svg {
+      width: 16px;
+      height: 16px;
+    }
+
+    .metric-value-wrap {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      margin-top: 0.5rem;
+    }
+
+    .metric-value {
+      font-size: 1.85rem;
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      color: var(--text-main);
+    }
+
+    .btn-sweep {
+      background-color: rgba(239, 68, 68, 0.15);
+      border: 1px solid var(--danger);
+      color: var(--danger);
+      font-size: 0.75rem;
+      font-weight: 600;
+      padding: 0.35rem 0.75rem;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+      transition: background-color 0.2s, color 0.2s, box-shadow 0.2s;
+    }
+
+    .btn-sweep:hover {
+      background-color: var(--danger);
+      color: #FFF;
+      box-shadow: 0 0 12px var(--danger-glow);
+    }
+
+    /* Content Layout (Services & HTTP Tap) */
+    .dashboard-layout {
+      display: grid;
+      grid-template-columns: 420px 1fr;
+      gap: 1.5rem;
+      align-items: start;
+    }
+
+    @media (max-width: 1200px) {
+      .dashboard-layout {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .panel {
+      background-color: var(--bg-surface);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-md);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .panel-header {
+      padding: 1rem 1.25rem;
+      border-bottom: 1px solid var(--border-color);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background-color: rgba(17, 24, 39, 0.5);
+    }
+
+    .panel-title {
+      font-size: 0.95rem;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .panel-body {
+      padding: 1.25rem;
+    }
+
+    /* Services List */
+    .services-list {
+      display: flex;
+      flex-direction: column;
+      gap: 0.85rem;
+      max-height: 700px;
+      overflow-y: auto;
+    }
+
+    .service-card {
+      background-color: rgba(30, 41, 59, 0.3);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-sm);
+      padding: 1rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.65rem;
+      transition: border-color 0.2s, background-color 0.2s;
+    }
+
+    .service-card:hover {
+      border-color: var(--border-color-light);
+      background-color: rgba(30, 41, 59, 0.5);
+    }
+
+    .service-card.is-zombie {
+      border-color: rgba(239, 68, 68, 0.4);
+      background-color: rgba(239, 68, 68, 0.05);
+    }
+
+    .service-top {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 0.5rem;
+    }
+
+    .service-host-wrap {
+      display: flex;
+      flex-direction: column;
+      gap: 0.15rem;
+    }
+
+    .service-host {
+      font-weight: 700;
+      font-size: 0.95rem;
+      color: var(--text-main);
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+
+    .status-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background-color: var(--success);
+      box-shadow: 0 0 6px var(--success-glow);
+    }
+
+    .status-dot.offline {
+      background-color: var(--text-dim);
+      box-shadow: none;
+    }
+
+    .service-meta {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      font-family: monospace;
+    }
+
+    .service-badges {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 0.35rem;
+    }
+
+    .badge {
+      font-size: 0.68rem;
+      font-weight: 600;
+      padding: 0.15rem 0.45rem;
+      border-radius: 4px;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.25rem;
+    }
+
+    .badge-agent {
+      background-color: rgba(79, 70, 229, 0.2);
+      color: #A5B4FC;
+      border: 1px solid rgba(79, 70, 229, 0.4);
+    }
+
+    .badge-zombie {
+      background-color: rgba(239, 68, 68, 0.2);
+      color: #FCA5A5;
+      border: 1px solid rgba(239, 68, 68, 0.4);
+    }
+
+    .badge-pinned {
+      background-color: rgba(245, 158, 11, 0.2);
+      color: #FCD34D;
+      border: 1px solid rgba(245, 158, 11, 0.4);
+    }
+
+    .badge-branch {
+      background-color: rgba(16, 185, 129, 0.15);
+      color: #6EE7B7;
+      border: 1px solid rgba(16, 185, 129, 0.3);
+    }
+
+    .service-actions {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 0.4rem;
+      border-top: 1px solid rgba(51, 65, 85, 0.3);
+      padding-top: 0.5rem;
+      margin-top: 0.2rem;
+    }
+
+    .btn {
+      font-size: 0.75rem;
+      font-weight: 600;
+      padding: 0.3rem 0.65rem;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      border: 1px solid transparent;
+      transition: all 0.15s ease;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.3rem;
+      text-decoration: none;
+    }
+
+    .btn-primary {
+      background-color: var(--primary);
+      color: #FFF;
+      border-color: var(--primary-light);
+    }
+
+    .btn-primary:hover {
+      background-color: var(--primary-light);
+    }
+
+    .btn-outline {
+      background-color: transparent;
+      border-color: var(--border-color-light);
+      color: var(--text-muted);
+    }
+
+    .btn-outline:hover {
+      background-color: var(--bg-surface-hover);
+      color: var(--text-main);
+      border-color: var(--text-muted);
+    }
+
+    .btn-danger-outline {
+      background-color: transparent;
+      border-color: rgba(239, 68, 68, 0.4);
+      color: #FCA5A5;
+    }
+
+    .btn-danger-outline:hover {
+      background-color: var(--danger);
+      color: #FFF;
+      border-color: var(--danger);
+    }
+
+    /* HTTP Tap Table Controls */
+    .tap-controls {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+    }
+
+    .search-input {
+      background-color: var(--bg-base);
+      border: 1px solid var(--border-color);
+      color: var(--text-main);
+      padding: 0.35rem 0.65rem;
+      font-size: 0.8rem;
+      border-radius: var(--radius-sm);
+      outline: none;
+      min-width: 180px;
+    }
+
+    .search-input:focus {
+      border-color: var(--primary-light);
+    }
+
+    .filter-checkbox-label {
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    /* Table */
+    .table-responsive {
+      overflow-x: auto;
+      max-height: 700px;
+      overflow-y: auto;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.825rem;
+      text-align: left;
+    }
+
+    th {
+      background-color: rgba(17, 24, 39, 0.8);
+      color: var(--text-dim);
+      font-weight: 600;
+      text-transform: uppercase;
+      font-size: 0.7rem;
+      letter-spacing: 0.05em;
+      padding: 0.75rem 1rem;
+      border-bottom: 1px solid var(--border-color);
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+
+    td {
+      padding: 0.65rem 1rem;
+      border-bottom: 1px solid var(--border-color);
+      color: var(--text-muted);
+      vertical-align: middle;
+    }
+
+    tr.tap-row {
+      cursor: pointer;
+      transition: background-color 0.15s;
+    }
+
+    tr.tap-row:hover {
+      background-color: var(--bg-surface-hover);
+    }
+
+    tr.tap-row.active {
+      background-color: var(--bg-surface-active);
+    }
+
+    .method-badge {
+      font-weight: 700;
+      font-size: 0.7rem;
+      padding: 0.2rem 0.45rem;
+      border-radius: 4px;
+      font-family: monospace;
+      display: inline-block;
+    }
+
+    .method-GET { background: rgba(59, 130, 246, 0.2); color: #93C5FD; border: 1px solid rgba(59, 130, 246, 0.4); }
+    .method-POST { background: rgba(16, 185, 129, 0.2); color: #6EE7B7; border: 1px solid rgba(16, 185, 129, 0.4); }
+    .method-PUT { background: rgba(245, 158, 11, 0.2); color: #FCD34D; border: 1px solid rgba(245, 158, 11, 0.4); }
+    .method-PATCH { background: rgba(168, 85, 247, 0.2); color: #D8B4FE; border: 1px solid rgba(168, 85, 247, 0.4); }
+    .method-DELETE { background: rgba(239, 68, 68, 0.2); color: #FCA5A5; border: 1px solid rgba(239, 68, 68, 0.4); }
+    .method-OPTIONS { background: rgba(148, 163, 184, 0.2); color: #CBD5E1; border: 1px solid rgba(148, 163, 184, 0.4); }
+
+    .status-badge {
+      font-weight: 700;
+      font-size: 0.72rem;
+      font-family: monospace;
+      padding: 0.15rem 0.45rem;
+      border-radius: 4px;
+    }
+
+    .status-2xx { color: var(--success); }
+    .status-3xx { color: var(--info); }
+    .status-4xx { color: var(--warning); }
+    .status-5xx { color: var(--danger); }
+
+    .path-cell {
+      font-family: monospace;
+      color: var(--text-main);
+      max-width: 320px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .service-cell {
+      font-family: monospace;
+      color: #A5B4FC;
+    }
+
+    .duration-cell {
+      font-family: monospace;
+      font-size: 0.75rem;
+    }
+
+    /* Slide-over Drawer */
+    .drawer-backdrop {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.6);
+      backdrop-filter: blur(4px);
+      z-index: 100;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.25s ease;
+    }
+
+    .drawer-backdrop.open {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .drawer {
+      position: fixed;
+      top: 0;
+      right: 0;
+      width: 680px;
+      max-width: 90vw;
+      height: 100%;
+      background-color: var(--bg-surface);
+      border-left: 1px solid var(--border-color-light);
+      box-shadow: -8px 0 32px rgba(0, 0, 0, 0.5);
+      z-index: 101;
+      transform: translateX(100%);
+      transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+      display: flex;
+      flex-direction: column;
+    }
+
+    .drawer.open {
+      transform: translateX(0);
+    }
+
+    .drawer-header {
+      padding: 1.25rem 1.5rem;
+      border-bottom: 1px solid var(--border-color);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background-color: rgba(17, 24, 39, 0.7);
+    }
+
+    .drawer-title-wrap {
+      display: flex;
+      align-items: center;
+      gap: 0.65rem;
+    }
+
+    .drawer-close {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      cursor: pointer;
+      font-size: 1.25rem;
+      padding: 0.25rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: var(--radius-sm);
+    }
+
+    .drawer-close:hover {
+      color: var(--text-main);
+      background-color: var(--bg-surface-hover);
+    }
+
+    .drawer-tabs {
+      display: flex;
+      border-bottom: 1px solid var(--border-color);
+      background-color: rgba(17, 24, 39, 0.4);
+      padding: 0 1.5rem;
+    }
+
+    .tab-btn {
+      padding: 0.75rem 1rem;
+      font-size: 0.825rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      background: none;
+      border: none;
+      border-bottom: 2px solid transparent;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .tab-btn:hover {
+      color: var(--text-main);
+    }
+
+    .tab-btn.active {
+      color: var(--primary-light);
+      border-bottom-color: var(--primary-light);
+    }
+
+    .drawer-content {
+      flex: 1;
+      padding: 1.5rem;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 1.25rem;
+    }
+
+    .meta-box {
+      background-color: rgba(11, 15, 25, 0.5);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-sm);
+      padding: 0.85rem 1rem;
+      font-size: 0.8rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.4rem;
+    }
+
+    .meta-row {
+      display: flex;
+      justify-content: space-between;
+      gap: 1rem;
+    }
+
+    .meta-label {
+      color: var(--text-dim);
+      font-weight: 600;
+    }
+
+    .meta-val {
+      font-family: monospace;
+      color: var(--text-main);
+      text-align: right;
+      word-break: break-all;
+    }
+
+    .section-title {
+      font-size: 0.8rem;
+      font-weight: 700;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      margin-bottom: 0.35rem;
+    }
+
+    pre.code-block {
+      background-color: var(--bg-base);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-sm);
+      padding: 1rem;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 0.775rem;
+      color: #E2E8F0;
+      overflow-x: auto;
+      max-height: 280px;
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+
+    .drawer-footer {
+      padding: 1rem 1.5rem;
+      border-top: 1px solid var(--border-color);
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 0.75rem;
+      background-color: rgba(17, 24, 39, 0.7);
+    }
+
+    /* Toast */
+    .toast-container {
+      position: fixed;
+      bottom: 1.5rem;
+      right: 1.5rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      z-index: 200;
+      pointer-events: none;
+    }
+
+    .toast {
+      background-color: var(--bg-surface);
+      border: 1px solid var(--border-color-light);
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+      padding: 0.65rem 1rem;
+      border-radius: var(--radius-sm);
+      font-size: 0.825rem;
+      color: var(--text-main);
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      opacity: 0;
+      transform: translateY(10px);
+      transition: all 0.2s ease-out;
+      pointer-events: auto;
+    }
+
+    .toast.show {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    .toast.error {
+      border-color: var(--danger);
+      color: #FCA5A5;
+    }
+
+    /* Empty state */
+    .empty-state {
+      padding: 2.5rem 1rem;
+      text-align: center;
+      color: var(--text-dim);
+      font-size: 0.85rem;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top Navigation Header -->
+  <header>
+    <div class="brand-section">
+      <div class="brand-logo">
+        <svg viewBox="0 0 24 24">
+          <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
+        </svg>
+      </div>
+      <div class="brand-title">
+        <span>lazylocal Hub</span>
+        <span class="brand-badge">hub.localhost</span>
+      </div>
+    </div>
+
+    <div class="header-controls">
+      <div class="sse-indicator" id="sse-indicator">
+        <div class="sse-dot" id="sse-dot"></div>
+        <span id="sse-status">Canlı SSE Bağlı</span>
+      </div>
+      <div class="token-pill" title="Aktif Güvenlik Tokenı">
+        <span>CSRF:</span>
+        <span id="token-preview">●●●●●●●●</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Dashboard Content -->
+  <main>
+    <!-- Top Metrics Grid -->
+    <section class="metrics-grid">
+      <div class="metric-card">
+        <div class="metric-header">
+          <span class="metric-title">Aktif Servisler</span>
+          <div class="metric-icon" style="color: var(--success);">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="2" y="2" width="20" height="8" rx="2" ry="2"/>
+              <rect x="2" y="14" width="20" height="8" rx="2" ry="2"/>
+              <line x1="6" y1="6" x2="6.01" y2="6"/>
+              <line x1="6" y1="18" x2="6.01" y2="18"/>
+            </svg>
+          </div>
+        </div>
+        <div class="metric-value-wrap">
+          <div class="metric-value" id="metric-active-services">0</div>
+        </div>
+      </div>
+
+      <div class="metric-card">
+        <div class="metric-header">
+          <span class="metric-title">Yakalanan HTTP İstekleri</span>
+          <div class="metric-icon" style="color: var(--primary-light);">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+            </svg>
+          </div>
+        </div>
+        <div class="metric-value-wrap">
+          <div class="metric-value" id="metric-total-requests">0</div>
+        </div>
+      </div>
+
+      <div class="metric-card">
+        <div class="metric-header">
+          <span class="metric-title">4xx / 5xx Hataları</span>
+          <div class="metric-icon" style="color: var(--danger);">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"/>
+              <line x1="12" y1="8" x2="12" y2="12"/>
+              <line x1="12" y1="16" x2="12.01" y2="16"/>
+            </svg>
+          </div>
+        </div>
+        <div class="metric-value-wrap">
+          <div class="metric-value" id="metric-error-count">0</div>
+        </div>
+      </div>
+
+      <div class="metric-card">
+        <div class="metric-header">
+          <span class="metric-title">Tespit Edilen Zombiler</span>
+          <div class="metric-icon" style="color: var(--warning);">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+              <line x1="12" y1="9" x2="12" y2="13"/>
+              <line x1="12" y1="17" x2="12.01" y2="17"/>
+            </svg>
+          </div>
+        </div>
+        <div class="metric-value-wrap">
+          <div class="metric-value" id="metric-zombie-count">0</div>
+          <button class="btn-sweep" id="btn-sweep-zombies" onclick="sweepZombies()">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="3 6 5 6 21 6"/>
+              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+            </svg>
+            Sweep Zombies
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Content Split Layout -->
+    <div class="dashboard-layout">
+      <!-- Left: Services Panel -->
+      <section class="panel">
+        <div class="panel-header">
+          <div class="panel-title">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/>
+              <line x1="8" y1="21" x2="16" y2="21"/>
+              <line x1="12" y1="17" x2="12" y2="21"/>
+            </svg>
+            <span>Çalışan & Pinned Servisler</span>
+          </div>
+          <span class="brand-badge" id="services-badge">0 servis</span>
+        </div>
+        <div class="panel-body">
+          <div class="services-list" id="services-list">
+            <div class="empty-state">Henüz keşfedilen veya sabitlenen servis yok.</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Right: Live HTTP Tap & Replay Panel -->
+      <section class="panel">
+        <div class="panel-header">
+          <div class="panel-title">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+            </svg>
+            <span>Canlı HTTP Tap & Replay</span>
+          </div>
+          <div class="tap-controls">
+            <input type="text" id="tap-search" class="search-input" placeholder="Filtrele (path, servis)..." oninput="applyFilters()">
+            <label class="filter-checkbox-label">
+              <input type="checkbox" id="filter-errors" onchange="toggleErrorFilter()">
+              <span>Sadece Hatalar (4xx/5xx)</span>
+            </label>
+            <button class="btn btn-outline" style="padding: 0.25rem 0.5rem;" onclick="clearExchanges()">Temizle</button>
+          </div>
+        </div>
+        <div class="table-responsive">
+          <table>
+            <thead>
+              <tr>
+                <th style="width: 80px;">Metod</th>
+                <th style="width: 70px;">Durum</th>
+                <th style="width: 80px;">Süre</th>
+                <th style="width: 140px;">Servis</th>
+                <th>İstek Yolu (Path)</th>
+                <th style="width: 150px; text-align: right;">İşlemler</th>
+              </tr>
+            </thead>
+            <tbody id="exchanges-tbody">
+              <tr>
+                <td colspan="6" class="empty-state">Henüz yakalanan HTTP trafiği yok. İstekler proxy üzerinden aktıkça burada canlı listelenecektir.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <!-- Slide-Over Drawer for Request / Response / Diff Details -->
+  <div class="drawer-backdrop" id="drawer-backdrop" onclick="closeDrawer()"></div>
+  <div class="drawer" id="drawer">
+    <div class="drawer-header">
+      <div class="drawer-title-wrap">
+        <span class="method-badge" id="drawer-method">GET</span>
+        <span style="font-weight: 700; font-family: monospace;" id="drawer-path">/</span>
+        <span class="status-badge" id="drawer-status">200 OK</span>
+      </div>
+      <button class="drawer-close" onclick="closeDrawer()">&times;</button>
+    </div>
+
+    <div class="drawer-tabs">
+      <button class="tab-btn active" onclick="switchDrawerTab('request')">İstek (Request)</button>
+      <button class="tab-btn" onclick="switchDrawerTab('response')">Yanıt (Response)</button>
+      <button class="tab-btn" onclick="switchDrawerTab('diff')">Replay / Diff</button>
+    </div>
+
+    <div class="drawer-content">
+      <!-- Request Tab -->
+      <div id="drawer-tab-request">
+        <div class="meta-box" style="margin-bottom: 1rem;">
+          <div class="meta-row"><span class="meta-label">Hedef URL:</span><span class="meta-val" id="d-req-url">-</span></div>
+          <div class="meta-row"><span class="meta-label">Host:</span><span class="meta-val" id="d-req-host">-</span></div>
+          <div class="meta-row"><span class="meta-label">İçerik Tipi:</span><span class="meta-val" id="d-req-content-type">-</span></div>
+        </div>
+
+        <div class="section-title">Başlıklar (Headers)</div>
+        <pre class="code-block" id="d-req-headers">-</pre>
+
+        <div class="section-title" style="margin-top: 1rem;">Gövde (Body)</div>
+        <pre class="code-block" id="d-req-body">-</pre>
+      </div>
+
+      <!-- Response Tab -->
+      <div id="drawer-tab-response" style="display: none;">
+        <div class="meta-box" style="margin-bottom: 1rem;">
+          <div class="meta-row"><span class="meta-label">Durum:</span><span class="meta-val" id="d-resp-status">-</span></div>
+          <div class="meta-row"><span class="meta-label">Gecikme / Süre:</span><span class="meta-val" id="d-resp-duration">-</span></div>
+          <div class="meta-row"><span class="meta-label">İçerik Tipi:</span><span class="meta-val" id="d-resp-content-type">-</span></div>
+        </div>
+
+        <div class="section-title">Başlıklar (Headers)</div>
+        <pre class="code-block" id="d-resp-headers">-</pre>
+
+        <div class="section-title" style="margin-top: 1rem;">Gövde (Body)</div>
+        <pre class="code-block" id="d-resp-body">-</pre>
+      </div>
+
+      <!-- Diff / Replay Tab -->
+      <div id="drawer-tab-diff" style="display: none;">
+        <div class="meta-box" style="margin-bottom: 1rem;">
+          <div class="meta-row"><span class="meta-label">Exchange ID:</span><span class="meta-val" id="d-diff-id">-</span></div>
+          <div class="meta-row"><span class="meta-label">Replayed Of:</span><span class="meta-val" id="d-diff-replayed-of">-</span></div>
+          <div class="meta-row"><span class="meta-label">Hata:</span><span class="meta-val" id="d-diff-error">-</span></div>
+        </div>
+        <div class="section-title">Orijinal vs Tekrarlanan Durum Analizi</div>
+        <pre class="code-block" id="d-diff-content">-</pre>
+      </div>
+    </div>
+
+    <div class="drawer-footer">
+      <button class="btn btn-outline" id="drawer-btn-curl" onclick="copyDrawerCurl()">Copy cURL</button>
+      <button class="btn btn-primary" id="drawer-btn-replay" onclick="replayDrawerExchange()">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="1 4 1 10 7 10"/>
+          <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/>
+        </svg>
+        Replay
+      </button>
+    </div>
+  </div>
+
+  <!-- Toast Notifications -->
+  <div class="toast-container" id="toast-container"></div>
+
+  <script>
+    // State
+    let services = [];
+    let exchanges = [];
+    let currentExchange = null;
+    let onlyErrors = false;
+
+    // Token setup
+    const CSRF_TOKEN = window.__LAZYLOCAL_TOKEN__ || '';
+    if (CSRF_TOKEN) {
+      document.getElementById('token-preview').textContent = CSRF_TOKEN.substring(0, 8) + '...';
+    }
+
+    // API Helpers
+    async function apiPost(url, body) {
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'X-Lazylocal-Token': CSRF_TOKEN,
+          'Content-Type': 'application/json'
+        },
+        body: body ? JSON.stringify(body) : undefined
+      });
+      if (!res.ok) {
+        let msg = res.statusText;
+        try {
+          const errData = await res.json();
+          if (errData.error) msg = errData.error;
+        } catch (e) {
+          try {
+            msg = await res.text();
+          } catch (e2) {}
+        }
+        throw new Error(msg || 'HTTP ' + res.status);
+      }
+      return res.json();
+    }
+
+    // Toast message
+    function showToast(text, isError = false) {
+      const container = document.getElementById('toast-container');
+      const toast = document.createElement('div');
+      toast.className = 'toast' + (isError ? ' error' : '');
+      toast.textContent = text;
+      container.appendChild(toast);
+      requestAnimationFrame(() => toast.classList.add('show'));
+      setTimeout(() => {
+        toast.classList.remove('show');
+        setTimeout(() => toast.remove(), 250);
+      }, 3000);
+    }
+
+    // Render Metrics
+    function updateMetrics() {
+      const activeCount = services.filter(s => s.running).length;
+      const zombieCount = services.filter(s => s.zombie_reason && s.zombie_reason !== '').length;
+      let errorCount = 0;
+      let totalReqs = 0;
+
+      for (const s of services) {
+        totalReqs += (s.request_count || 0);
+        errorCount += (s.error_count || 0);
+      }
+
+      // Also count from exchanges if available
+      if (exchanges.length > 0 && totalReqs === 0) {
+        totalReqs = exchanges.length;
+        errorCount = exchanges.filter(e => e.resp && e.resp.status_code >= 400).length;
+      }
+
+      document.getElementById('metric-active-services').textContent = activeCount;
+      document.getElementById('metric-total-requests').textContent = totalReqs;
+      document.getElementById('metric-error-count').textContent = errorCount;
+      document.getElementById('metric-zombie-count').textContent = zombieCount;
+      document.getElementById('services-badge').textContent = `${services.length} servis`;
+    }
+
+    // Render Services List
+    function renderServices(items) {
+      if (items) services = items;
+      const listEl = document.getElementById('services-list');
+      if (!services || services.length === 0) {
+        listEl.innerHTML = '<div class="empty-state">Henüz keşfedilen veya sabitlenen servis yok.</div>';
+        updateMetrics();
+        return;
+      }
+
+      listEl.innerHTML = '';
+      for (const s of services) {
+        const isZombie = s.zombie_reason && s.zombie_reason !== '';
+        const card = document.createElement('div');
+        card.className = 'service-card' + (isZombie ? ' is-zombie' : '');
+
+        const hostDisplay = s.host || (s.name ? s.name + '.localhost' : 'localhost');
+        const portDisplay = s.port ? `:${s.port}` : '';
+        const targetUrl = `http://${hostDisplay}${s.port && s.port !== 80 ? ':' + s.port : ''}`;
+
+        // Badges HTML
+        let badgesHtml = '';
+        if (s.agent) {
+          badgesHtml += `<span class="badge badge-agent">🤖 ${escapeHtml(s.agent)}</span>`;
+        }
+        if (s.branch) {
+          badgesHtml += `<span class="badge badge-branch">🌿 ${escapeHtml(s.branch)}</span>`;
+        }
+        if (s.pinned) {
+          badgesHtml += `<span class="badge badge-pinned">📌 Pinned</span>`;
+        }
+        if (isZombie) {
+          badgesHtml += `<span class="badge badge-zombie">🧟 Zombie: ${escapeHtml(s.zombie_reason)}</span>`;
+        }
+
+        // Action Buttons
+        let actionsHtml = '';
+        actionsHtml += `<a href="${targetUrl}" target="_blank" class="btn btn-outline" style="padding: 0.2rem 0.5rem;">Aç ↗</a>`;
+        if (s.running) {
+          actionsHtml += `<button class="btn btn-danger-outline" style="padding: 0.2rem 0.5rem;" onclick="killService('${escapeHtml(s.id)}', '${escapeHtml(s.name)}')">Kill</button>`;
+        } else if (s.pinned) {
+          actionsHtml += `<button class="btn btn-primary" style="padding: 0.2rem 0.5rem;" onclick="launchService('${escapeHtml(s.id)}', '${escapeHtml(s.name)}')">Launch</button>`;
+        }
+
+        card.innerHTML = `
+          <div class="service-top">
+            <div class="service-host-wrap">
+              <div class="service-host">
+                <span class="status-dot ${s.running ? '' : 'offline'}"></span>
+                <span>${escapeHtml(hostDisplay)}</span>
+                <span style="color: var(--text-dim); font-size: 0.8rem; font-family: monospace;">${portDisplay}</span>
+              </div>
+              <div class="service-meta">
+                ${s.pid ? `<span>PID: ${s.pid}</span>` : ''}
+                ${s.repo ? `<span>Repo: ${escapeHtml(s.repo)}</span>` : ''}
+              </div>
+            </div>
+            <div class="service-badges">${badgesHtml}</div>
+          </div>
+          <div class="service-actions">${actionsHtml}</div>
+        `;
+        listEl.appendChild(card);
+      }
+      updateMetrics();
+    }
+
+    // Render Exchanges Table
+    function renderExchanges() {
+      const tbody = document.getElementById('exchanges-tbody');
+      const searchVal = (document.getElementById('tap-search').value || '').toLowerCase().trim();
+
+      let filtered = exchanges;
+      if (onlyErrors) {
+        filtered = filtered.filter(e => e.resp && e.resp.status_code >= 400);
+      }
+      if (searchVal) {
+        filtered = filtered.filter(e => {
+          const path = (e.req && e.req.path ? e.req.path : '').toLowerCase();
+          const srv = (e.service || '').toLowerCase();
+          const method = (e.req && e.req.method ? e.req.method : '').toLowerCase();
+          return path.includes(searchVal) || srv.includes(searchVal) || method.includes(searchVal);
+        });
+      }
+
+      if (filtered.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" class="empty-state">Kriterlere uyan yakalanmış HTTP isteği bulunamadı.</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = '';
+      for (const ex of filtered) {
+        const tr = document.createElement('tr');
+        tr.className = 'tap-row' + (currentExchange && currentExchange.id === ex.id ? ' active' : '');
+        tr.onclick = () => openDrawer(ex);
+
+        const method = (ex.req && ex.req.method) || 'GET';
+        const status = (ex.resp && ex.resp.status_code) || 0;
+        let statusClass = 'status-2xx';
+        if (status >= 500) statusClass = 'status-5xx';
+        else if (status >= 400) statusClass = 'status-4xx';
+        else if (status >= 300) statusClass = 'status-3xx';
+
+        const duration = ex.duration_ms ? `${ex.duration_ms.toFixed(1)}ms` : '-';
+        const service = ex.service || (ex.req && ex.req.host) || '-';
+        const path = (ex.req && ex.req.path) || '/';
+
+        tr.innerHTML = `
+          <td><span class="method-badge method-${method}">${method}</span></td>
+          <td><span class="status-badge ${statusClass}">${status || '-'}</span></td>
+          <td class="duration-cell">${duration}</td>
+          <td class="service-cell">${escapeHtml(service)}</td>
+          <td class="path-cell" title="${escapeHtml(path)}">${escapeHtml(path)}</td>
+          <td style="text-align: right;">
+            <button class="btn btn-outline" style="padding: 0.15rem 0.4rem; font-size: 0.7rem;" onclick="copyCurl(event, '${ex.id}')">cURL</button>
+            <button class="btn btn-primary" style="padding: 0.15rem 0.4rem; font-size: 0.7rem;" onclick="replayExchange(event, '${ex.id}')">Replay</button>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      }
+    }
+
+    // Add single exchange from live SSE
+    function addExchange(ex) {
+      if (!ex || !ex.id) return;
+      // Prepend to list
+      exchanges.unshift(ex);
+      if (exchanges.length > 500) {
+        exchanges.pop();
+      }
+      renderExchanges();
+      updateMetrics();
+    }
+
+    // Actions
+    async function killService(id, name) {
+      if (!confirm(`"${name || id}" servisini durdurmak istediğinize emin misiniz?`)) return;
+      try {
+        await apiPost('/api/kill?id=' + encodeURIComponent(id));
+        showToast(`✓ "${name || id}" servisi durduruldu`);
+        loadServices();
+      } catch (err) {
+        showToast('Hata: ' + err.message, true);
+      }
+    }
+
+    async function launchService(id, name) {
+      try {
+        await apiPost('/api/launch?id=' + encodeURIComponent(id));
+        showToast(`✓ "${name || id}" servisi başlatıldı`);
+        loadServices();
+      } catch (err) {
+        showToast('Hata: ' + err.message, true);
+      }
+    }
+
+    async function sweepZombies() {
+      try {
+        const res = await apiPost('/api/sweep-zombies');
+        showToast(`✓ ${res.swept_count || 0} adet zombi servis temizlendi`);
+        loadServices();
+      } catch (err) {
+        showToast('Zombi temizleme hatası: ' + err.message, true);
+      }
+    }
+
+    async function replayExchange(e, id) {
+      if (e) e.stopPropagation();
+      try {
+        showToast('İstek tekrarlanıyor...');
+        const res = await apiPost('/api/replay?id=' + encodeURIComponent(id));
+        showToast(`✓ İstek başarıyla tekrarlandı (HTTP ${res.resp ? res.resp.status_code : 200})`);
+        loadExchanges();
+      } catch (err) {
+        showToast('Replay hatası: ' + err.message, true);
+      }
+    }
+
+    function buildCurl(ex) {
+      if (!ex || !ex.req) return '';
+      const req = ex.req;
+      const host = req.host || (ex.service ? ex.service + '.localhost' : 'localhost');
+      const url = `http://${host}${req.path || '/'}${req.query ? '?' + req.query : ''}`;
+      let parts = [`curl -X ${req.method || 'GET'} "${url}"`];
+
+      if (req.headers) {
+        for (const [k, vals] of Object.entries(req.headers)) {
+          if (['host', 'content-length'].includes(k.toLowerCase())) continue;
+          const list = Array.isArray(vals) ? vals : [vals];
+          for (const v of list) {
+            parts.push(`  -H "${k}: ${v}"`);
+          }
+        }
+      }
+
+      if (req.body) {
+        let bodyStr = decodeBody(req.body);
+        if (bodyStr) {
+          parts.push(`  --data '${bodyStr.replace(/'/g, "'\\''")}'`);
+        }
+      }
+      return parts.join(' \\\n');
+    }
+
+    function copyCurl(e, id) {
+      if (e) e.stopPropagation();
+      const ex = exchanges.find(x => x.id === id);
+      if (!ex) return;
+      const cmd = buildCurl(ex);
+      navigator.clipboard.writeText(cmd).then(() => {
+        showToast('✓ cURL komutu panoya kopyalandı');
+      }).catch(() => {
+        showToast('Kopyalama başarısız oldu', true);
+      });
+    }
+
+    function copyDrawerCurl() {
+      if (!currentExchange) return;
+      const cmd = buildCurl(currentExchange);
+      navigator.clipboard.writeText(cmd).then(() => {
+        showToast('✓ cURL komutu panoya kopyalandı');
+      }).catch(() => {
+        showToast('Kopyalama başarısız oldu', true);
+      });
+    }
+
+    function replayDrawerExchange() {
+      if (!currentExchange) return;
+      replayExchange(null, currentExchange.id);
+    }
+
+    // Drawer helpers
+    function decodeBody(bodyBytes) {
+      if (!bodyBytes) return '';
+      try {
+        const decoded = atob(bodyBytes);
+        try {
+          return JSON.stringify(JSON.parse(decoded), null, 2);
+        } catch (e) {
+          return decoded;
+        }
+      } catch (err) {
+        return bodyBytes;
+      }
+    }
+
+    function openDrawer(ex) {
+      currentExchange = ex;
+      renderExchanges();
+
+      const method = (ex.req && ex.req.method) || 'GET';
+      const status = (ex.resp && ex.resp.status_code) || 0;
+      const path = (ex.req && ex.req.path) || '/';
+
+      document.getElementById('drawer-method').textContent = method;
+      document.getElementById('drawer-method').className = `method-badge method-${method}`;
+      document.getElementById('drawer-path').textContent = path;
+      document.getElementById('drawer-status').textContent = status ? `${status} ${ex.resp.status || ''}` : '-';
+
+      // Request tab values
+      const reqHost = (ex.req && ex.req.host) || (ex.service ? ex.service + '.localhost' : '-');
+      document.getElementById('d-req-url').textContent = `http://${reqHost}${path}${ex.req && ex.req.query ? '?' + ex.req.query : ''}`;
+      document.getElementById('d-req-host').textContent = reqHost;
+      document.getElementById('d-req-content-type').textContent = (ex.req && ex.req.content_type) || '-';
+      document.getElementById('d-req-headers').textContent = ex.req && ex.req.headers ? JSON.stringify(ex.req.headers, null, 2) : 'Boş';
+      document.getElementById('d-req-body').textContent = (ex.req && ex.req.body) ? decodeBody(ex.req.body) : '(Gövde yok)';
+
+      // Response tab values
+      document.getElementById('d-resp-status').textContent = status ? `${status} ${ex.resp.status || ''}` : '-';
+      document.getElementById('d-resp-duration').textContent = ex.duration_ms ? `${ex.duration_ms.toFixed(2)} ms` : '-';
+      document.getElementById('d-resp-content-type').textContent = (ex.resp && ex.resp.content_type) || '-';
+      document.getElementById('d-resp-headers').textContent = ex.resp && ex.resp.headers ? JSON.stringify(ex.resp.headers, null, 2) : 'Boş';
+      document.getElementById('d-resp-body').textContent = (ex.resp && ex.resp.body) ? decodeBody(ex.resp.body) : '(Gövde yok)';
+
+      // Diff tab values
+      document.getElementById('d-diff-id').textContent = ex.id;
+      document.getElementById('d-diff-replayed-of').textContent = ex.replayed_of || 'Orijinal İstek (Replay değil)';
+      document.getElementById('d-diff-error').textContent = ex.error || 'Hata yok';
+      document.getElementById('d-diff-content').textContent = JSON.stringify({
+        exchange_id: ex.id,
+        replayed_of: ex.replayed_of || null,
+        duration_ms: ex.duration_ms,
+        status: status,
+        error: ex.error || null
+      }, null, 2);
+
+      switchDrawerTab('request');
+      document.getElementById('drawer-backdrop').classList.add('open');
+      document.getElementById('drawer').classList.add('open');
+    }
+
+    function closeDrawer() {
+      document.getElementById('drawer-backdrop').classList.remove('open');
+      document.getElementById('drawer').classList.remove('open');
+      currentExchange = null;
+      renderExchanges();
+    }
+
+    function switchDrawerTab(tab) {
+      document.getElementById('drawer-tab-request').style.display = tab === 'request' ? 'block' : 'none';
+      document.getElementById('drawer-tab-response').style.display = tab === 'response' ? 'block' : 'none';
+      document.getElementById('drawer-tab-diff').style.display = tab === 'diff' ? 'block' : 'none';
+
+      const btns = document.querySelectorAll('.drawer-tabs .tab-btn');
+      btns[0].classList.toggle('active', tab === 'request');
+      btns[1].classList.toggle('active', tab === 'response');
+      btns[2].classList.toggle('active', tab === 'diff');
+    }
+
+    function applyFilters() {
+      renderExchanges();
+    }
+
+    function toggleErrorFilter() {
+      onlyErrors = document.getElementById('filter-errors').checked;
+      renderExchanges();
+    }
+
+    function clearExchanges() {
+      exchanges = [];
+      renderExchanges();
+      updateMetrics();
+      showToast('Tablo temizlendi');
+    }
+
+    function escapeHtml(str) {
+      if (!str) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }
+
+    // Initial Data Fetch
+    async function loadServices() {
+      try {
+        const res = await fetch('/api/services');
+        if (res.ok) {
+          const list = await res.json();
+          renderServices(list);
+        }
+      } catch (err) {
+        console.error('Servisler yüklenemedi:', err);
+      }
+    }
+
+    async function loadExchanges() {
+      try {
+        const res = await fetch('/api/exchanges');
+        if (res.ok) {
+          const list = await res.json();
+          if (Array.isArray(list)) {
+            exchanges = list;
+            renderExchanges();
+            updateMetrics();
+          }
+        }
+      } catch (err) {
+        console.error('Exchange listesi yüklenemedi:', err);
+      }
+    }
+
+    // Setup Live SSE
+    function setupSSE() {
+      const dot = document.getElementById('sse-dot');
+      const status = document.getElementById('sse-status');
+
+      const es = new EventSource('/api/events');
+
+      es.addEventListener('init', (e) => {
+        try {
+          const data = JSON.parse(e.data);
+          if (data.services) renderServices(data.services);
+        } catch (err) {}
+      });
+
+      es.addEventListener('services_updated', (e) => {
+        try {
+          const data = JSON.parse(e.data);
+          if (data.services) renderServices(data.services);
+        } catch (err) {}
+      });
+
+      es.addEventListener('exchange_recorded', (e) => {
+        try {
+          const data = JSON.parse(e.data);
+          if (data.exchange) addExchange(data.exchange);
+        } catch (err) {}
+      });
+
+      es.addEventListener('service_killed', (e) => {
+        loadServices();
+      });
+
+      es.onmessage = (e) => {
+        try {
+          const data = JSON.parse(e.data);
+          if (data.type === 'services_updated' && data.services) renderServices(data.services);
+          if (data.type === 'exchange_recorded' && data.exchange) addExchange(data.exchange);
+        } catch (err) {}
+      };
+
+      es.onopen = () => {
+        dot.className = 'sse-dot';
+        status.textContent = 'Canlı SSE Bağlı';
+      };
+
+      es.onerror = () => {
+        dot.className = 'sse-dot disconnected';
+        status.textContent = 'Bağlantı Kesildi (Yeniden deneniyor...)';
+      };
+    }
+
+    // Keyboard shortcuts
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') closeDrawer();
+    });
+
+    // Boot
+    loadServices();
+    loadExchanges();
+    setupSSE();
+  </script>
+</body>
+</html>

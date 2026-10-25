@@ -1,0 +1,5 @@
+dist/
+Docs/coordination/board.json
+*.tgz
+.DS_Store
+Docs/
