@@ -90,16 +90,18 @@ func (c *captureReader) Read(p []byte) (n int, err error) {
 	if n > 0 {
 		c.mu.Lock()
 		c.total += int64(n)
-		if c.buf.Len() < c.max {
-			canWrite := c.max - c.buf.Len()
-			if n <= canWrite {
-				c.buf.Write(p[:n])
+		if c.max > 0 {
+			if c.buf.Len() < c.max {
+				canWrite := c.max - c.buf.Len()
+				if n <= canWrite {
+					c.buf.Write(p[:n])
+				} else {
+					c.buf.Write(p[:canWrite])
+					c.truncated = true
+				}
 			} else {
-				c.buf.Write(p[:canWrite])
 				c.truncated = true
 			}
-		} else {
-			c.truncated = true
 		}
 		c.mu.Unlock()
 	}
@@ -432,12 +434,14 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				muStatus.Unlock()
 				return nil
 			}
+			maxCap := 0
 			if p.CaptureBodies() {
-				rc := newCaptureReader(resp.Body, capture.MaxBodyBytes)
-				rc.onFinish = recordExchange
-				respCapture = rc
-				resp.Body = rc
+				maxCap = capture.MaxBodyBytes
 			}
+			rc := newCaptureReader(resp.Body, maxCap)
+			rc.onFinish = recordExchange
+			respCapture = rc
+			resp.Body = rc
 			muStatus.Unlock()
 			return nil
 		},
