@@ -249,7 +249,10 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 4. Capture Request Body
+	// 4. Capture Request Body & Enable Full Duplex to prevent net/http writeHeader
+	// from closing r.Body while transport.writeLoop is completing EOF check on multi-core Linux.
+	_ = http.NewResponseController(w).EnableFullDuplex()
+
 	var reqCapture *captureReader
 	origRawHeaders := r.Header.Clone()
 	maskedReqHeaders := capture.MaskHeaders(r.Header)
@@ -741,6 +744,10 @@ var sensitiveBodyRegex = regexp.MustCompile(`(?i)("?(?:password|passwd|pass|secr
 // redactSensitiveBody scrubs sensitive fields from JSON and form-urlencoded payloads in-memory.
 func redactSensitiveBody(body []byte, contentType string) []byte {
 	if len(body) == 0 {
+		return body
+	}
+	// Fast path: every key-value secret in JSON or form data requires ':' or '='.
+	if bytes.IndexByte(body, ':') == -1 && bytes.IndexByte(body, '=') == -1 {
 		return body
 	}
 
