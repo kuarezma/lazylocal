@@ -18,11 +18,8 @@ import (
 	"github.com/ugur/lazylocal/internal/model"
 )
 
-// 1. --version çıktısını ve süresini (<50ms) doğrular
-func TestVersionOutputAndLatency(t *testing.T) {
-	start := time.Now()
-
-	// Capture output
+func captureStdout(t *testing.T, fn func() error) (string, error) {
+	t.Helper()
 	oldStdout := os.Stdout
 	r, w, err := os.Pipe()
 	if err != nil {
@@ -30,16 +27,33 @@ func TestVersionOutputAndLatency(t *testing.T) {
 	}
 	os.Stdout = w
 
-	printVersion()
+	var buf bytes.Buffer
+	done := make(chan struct{})
+	go func() {
+		_, _ = io.Copy(&buf, r)
+		_ = r.Close()
+		close(done)
+	}()
 
-	w.Close()
+	runErr := fn()
+	_ = w.Close()
 	os.Stdout = oldStdout
+	<-done
+
+	return buf.String(), runErr
+}
+
+// 1. --version çıktısını ve süresini (<50ms) doğrular
+func TestVersionOutputAndLatency(t *testing.T) {
+	start := time.Now()
+
+	rawOut, _ := captureStdout(t, func() error {
+		printVersion()
+		return nil
+	})
 
 	duration := time.Since(start)
-
-	var buf bytes.Buffer
-	_, _ = io.Copy(&buf, r)
-	output := strings.TrimSpace(buf.String())
+	output := strings.TrimSpace(rawOut)
 
 	expected := fmt.Sprintf("lazylocal %s (%s/%s)", version, runtime.GOOS, runtime.GOARCH)
 	if output != expected {
@@ -223,23 +237,15 @@ func TestCLIURLCommand(t *testing.T) {
 
 	// Test --json output
 	{
-		oldStdout := os.Stdout
-		r, w, _ := os.Pipe()
-		os.Stdout = w
-
-		err := runURL([]string{"--cwd", wd, "--json", "--port", "7080"})
-		w.Close()
-		os.Stdout = oldStdout
-
+		rawOut, err := captureStdout(t, func() error {
+			return runURL([]string{"--cwd", wd, "--json", "--port", "7080"})
+		})
 		if err != nil {
 			t.Fatalf("runURL failed: %v", err)
 		}
 
-		var buf bytes.Buffer
-		_, _ = io.Copy(&buf, r)
-
 		var res map[string]any
-		if err := json.Unmarshal(buf.Bytes(), &res); err != nil {
+		if err := json.Unmarshal([]byte(rawOut), &res); err != nil {
 			t.Fatalf("failed to unmarshal JSON: %v", err)
 		}
 
@@ -251,22 +257,14 @@ func TestCLIURLCommand(t *testing.T) {
 
 	// Test plain output
 	{
-		oldStdout := os.Stdout
-		r, w, _ := os.Pipe()
-		os.Stdout = w
-
-		err := runURL([]string{"--cwd", wd, "--port", "7080"})
-		w.Close()
-		os.Stdout = oldStdout
-
+		rawOut, err := captureStdout(t, func() error {
+			return runURL([]string{"--cwd", wd, "--port", "7080"})
+		})
 		if err != nil {
 			t.Fatalf("runURL plain failed: %v", err)
 		}
 
-		var buf bytes.Buffer
-		_, _ = io.Copy(&buf, r)
-		line := strings.TrimSpace(buf.String())
-
+		line := strings.TrimSpace(rawOut)
 		if !strings.HasPrefix(line, "http://") || !strings.Contains(line, ".localhost:7080") {
 			t.Fatalf("unexpected URL string: %q", line)
 		}
@@ -274,23 +272,15 @@ func TestCLIURLCommand(t *testing.T) {
 }
 
 func TestCLIListCommand(t *testing.T) {
-	oldStdout := os.Stdout
-	r, w, _ := os.Pipe()
-	os.Stdout = w
-
-	err := runList([]string{"--json"})
-	w.Close()
-	os.Stdout = oldStdout
-
+	rawOut, err := captureStdout(t, func() error {
+		return runList([]string{"--json"})
+	})
 	if err != nil {
 		t.Fatalf("runList failed: %v", err)
 	}
 
-	var buf bytes.Buffer
-	_, _ = io.Copy(&buf, r)
-
 	var svcs []model.Service
-	if err := json.Unmarshal(buf.Bytes(), &svcs); err != nil {
+	if err := json.Unmarshal([]byte(rawOut), &svcs); err != nil {
 		t.Fatalf("failed to unmarshal JSON from runList: %v", err)
 	}
 
@@ -300,21 +290,12 @@ func TestCLIListCommand(t *testing.T) {
 }
 
 func TestCLISweepDryRun(t *testing.T) {
-	oldStdout := os.Stdout
-	r, w, _ := os.Pipe()
-	os.Stdout = w
-
-	err := runSweep([]string{"--dry-run"})
-	w.Close()
-	os.Stdout = oldStdout
-
+	output, err := captureStdout(t, func() error {
+		return runSweep([]string{"--dry-run"})
+	})
 	if err != nil {
 		t.Fatalf("runSweep --dry-run failed: %v", err)
 	}
-
-	var buf bytes.Buffer
-	_, _ = io.Copy(&buf, r)
-	output := buf.String()
 
 	// Should either say no zombies or dry-run mode
 	if !strings.Contains(output, "No zombie dev processes") && !strings.Contains(output, "Dry-run mode") {
