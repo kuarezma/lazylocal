@@ -1,0 +1,115 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions: {}
+
+jobs:
+  verify:
+    name: Verify
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+          check-latest: true
+          cache: true
+
+      - name: Verify dependencies
+        run: |
+          go mod verify
+
+      - name: Static Analysis (go vet)
+        run: |
+          go vet ./...
+
+      - name: Run Test Suite (-race)
+        run: |
+          go test -race ./...
+
+      - name: Run govulncheck
+        run: |
+          go run golang.org/x/vuln/cmd/govulncheck@latest ./...
+
+  release:
+    name: Release
+    needs: verify
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+          check-latest: true
+          cache: true
+
+      - name: Enforce Immutable Release (Prevent Asset Overwrite)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            ASSET_COUNT="$(gh release view "$TAG" --json assets -q '.assets | length')"
+            if [ "${ASSET_COUNT:-0}" -gt 0 ]; then
+              echo "❌ Error: Release $TAG already has $ASSET_COUNT published assets. Overwriting published release artifacts is forbidden." >&2
+              exit 1
+            fi
+          fi
+
+      - name: Build Cross-Platform Release Artifacts & Checksums
+        run: |
+          VERSION="${GITHUB_REF_NAME}"
+          mkdir -p dist/release
+          CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build -trimpath -ldflags="-s -w -X main.version=${VERSION}" -o dist/release/lazylocal-darwin-arm64 ./cmd/lazylocal
+          CGO_ENABLED=0 GOOS=darwin GOARCH=amd64 go build -trimpath -ldflags="-s -w -X main.version=${VERSION}" -o dist/release/lazylocal-darwin-amd64 ./cmd/lazylocal
+          CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -trimpath -ldflags="-s -w -X main.version=${VERSION}" -o dist/release/lazylocal-linux-arm64 ./cmd/lazylocal
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w -X main.version=${VERSION}" -o dist/release/lazylocal-linux-amd64 ./cmd/lazylocal
+          CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -trimpath -ldflags="-s -w -X main.version=${VERSION}" -o dist/release/lazylocal-windows-amd64.exe ./cmd/lazylocal
+          CGO_ENABLED=0 GOOS=windows GOARCH=arm64 go build -trimpath -ldflags="-s -w -X main.version=${VERSION}" -o dist/release/lazylocal-windows-arm64.exe ./cmd/lazylocal
+          (cd dist/release && sha256sum lazylocal-* > checksums.txt && cat checksums.txt)
+
+      - name: Attest Build Provenance (Sigstore / SLSA)
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: 'dist/release/lazylocal-*'
+
+      - name: Publish Immutable Release Assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" dist/release/*
+          else
+            gh release create "$TAG" dist/release/* --title "$TAG — lazygit for localhost" --generate-notes
+          fi
+
+      - name: Verify Published Release Binaries & Sigstore Attestation
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          mkdir -p /tmp/verify-release
+          gh release download "$TAG" --dir /tmp/verify-release
+          cd /tmp/verify-release
+          sha256sum -c checksums.txt
+          for bin in lazylocal-*; do
+            echo "Verifying Sigstore attestation for published asset: $bin"
+            gh attestation verify "$bin" --repo "${GITHUB_REPOSITORY}"
+          done

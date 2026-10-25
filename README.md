@@ -18,6 +18,7 @@
 Zero-config `.localhost` subdomains • In-flight HTTP tap & instant replay • Autonomous zombie process hunter • Built for human developers and multi-agent AI coding loops.
 
 [![CI](https://github.com/kuarezma/lazylocal/actions/workflows/ci.yml/badge.svg)](https://github.com/kuarezma/lazylocal/actions/workflows/ci.yml)
+[![Release](https://github.com/kuarezma/lazylocal/actions/workflows/release.yml/badge.svg)](https://github.com/kuarezma/lazylocal/actions/workflows/release.yml)
 [![Go Report Card](https://goreportcard.com/badge/github.com/kuarezma/lazylocal)](https://goreportcard.com/report/github.com/kuarezma/lazylocal)
 [![Go Version](https://img.shields.io/badge/go-%3E%3D1.22-blue.svg)](https://golang.org)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
@@ -248,8 +249,10 @@ For complete threat models, architecture diagrams, and the automated regression 
    `lazylocal sweep` defaults to preview mode without killing processes unless `--yes` / `-y` is provided. Process termination validates live PID command names before signaling, preventing PID reuse race conditions.
 7. **AI Agent Shell Protection & Graceful Zombie Sweep**:
    Process termination checks `PGID == PID` before signaling process groups, protecting parent AI agent shells (Claude Code, Cursor, Codex).
-8. **Cryptographic Release Verification & Sigstore SLSA Build Provenance**:
-   `install.sh` and `install.ps1` cryptographically verify release SHA-256 hashes against `checksums.txt`. Binaries built in CI are signed with cryptographic build provenance attestations via GitHub Sigstore (`actions/attest-build-provenance@v2`). Installers verify this provenance via GitHub CLI (`gh attestation verify lazylocal --repo kuarezma/lazylocal`), and allow strict fail-closed enforcement via `REQUIRE_ATTESTATION=1`.
+8. **Least-Privilege CI/CD, Immutable Releases & Sigstore SLSA Provenance**:
+   - **Least-Privilege CI/CD**: Pull request and commit workflows (`ci.yml`) operate under strict read-only permissions (`contents: read`), prohibiting any release mutation or token escalation. Release builds and asset uploads are completely isolated in a separate, tag-driven workflow (`release.yml`, triggered only on `v*` tags) where write privileges (`contents: write`, `id-token: write`, `attestations: write`) are granted only to the downstream `release` job after an unprivileged `verify` job succeeds.
+   - **Immutable Releases (Anti-Clobber)**: Release publishing verifies that existing tags have no uploaded assets before starting, and disallows overwrite flags (`--clobber`), guaranteeing that published release artifacts cannot be replaced or tampered with on re-runs.
+   - **Cryptographic Provenance & Post-Publish Verification**: Binaries are attested via GitHub Sigstore (`actions/attest-build-provenance@v2`). The release pipeline automatically downloads published assets and verifies both SHA-256 checksums (`sha256sum -c`) and Sigstore attestations (`gh attestation verify`) against the live release. Official installers (`install.sh` and `install.ps1`) verify SHA-256 hashes and Sigstore provenance with optional strict fail-closed enforcement via `REQUIRE_ATTESTATION=1`.
 9. **Continuous Automated Native Go Fuzz Testing (`testing.F`)**:
    Continuous native Go fuzz tests (`FuzzRedactSensitiveBody`, `FuzzCurlCommand`, `FuzzParsePins`, `FuzzSanitizeTerm`) run in GitHub Actions CI to guarantee zero panics, strict shell-escape boundaries, and credential scrubbing across hostile, malformed, and arbitrary byte inputs.
 10. **Terminal Escape Sanitization**:

@@ -1,6 +1,6 @@
 {
   "name": "lazylocal",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Zero-config local development reverse proxy with tap & replay and zombie process cleaner",
   "bin": {
     "lazylocal": "bin/lazylocal.js"

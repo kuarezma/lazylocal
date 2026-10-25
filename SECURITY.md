@@ -1,6 +1,7 @@
 # Security Architecture & Threat Model
 
 [![CI](https://github.com/kuarezma/lazylocal/actions/workflows/ci.yml/badge.svg)](https://github.com/kuarezma/lazylocal/actions/workflows/ci.yml)
+[![Release](https://github.com/kuarezma/lazylocal/actions/workflows/release.yml/badge.svg)](https://github.com/kuarezma/lazylocal/actions/workflows/release.yml)
 
 `lazylocal` is a zero-configuration local development reverse proxy, HTTP tap, and dev process manager designed for human developers and autonomous AI coding agents (Claude Code, OpenAI Codex, Gemini CLI, Cursor). Because local development environments handle sensitive credentials, source code, and listening sockets, `lazylocal` implements defense-in-depth security guardrails.
 
@@ -158,10 +159,14 @@ Untrusted HTTP traffic captured by the proxy (URLs, headers, JSON payloads) coul
 ## 8. Cryptographic Release Verification, Sigstore Attestations & Fuzz Testing
 
 ### Protective Controls
+- **Strict Least-Privilege CI/CD Architecture (`ci.yml` vs `release.yml`)**:
+  Pull request and branch CI (`.github/workflows/ci.yml`) is bound to least-privilege read-only permissions (`contents: read` at top-level and job-level). It contains zero release publication steps and holds no write tokens, preventing unauthorized artifact uploads or supply-chain compromise via PR workflows. Release packaging, provenance attestation, and binary publishing are isolated in a separate workflow (`.github/workflows/release.yml`) triggered strictly by version tags (`v*`). In `release.yml`, write permissions (`contents: write`, `id-token: write`, `attestations: write`) are granted only to the `release` job and only after an unprivileged `verify` job (`contents: read`) passes `go mod verify`, `go vet`, `go test -race`, and `govulncheck`.
+- **Immutable Release Asset Enforcement (No Overwrite / Anti-Clobber)**:
+  `release.yml` enforces release asset immutability. Before building release artifacts, an automated guard queries the GitHub API (`gh release view "$TAG" --json assets`) and immediately aborts (`exit 1`) if the release already contains published assets. Published assets are uploaded via `gh release upload` without `--clobber`, preventing any overwriting or silent mutation of existing releases on re-runs.
 - **Cryptographic SHA-256 Checksum Verification**:
   Official installers (`install.sh` and `install.ps1`) automatically download the release `checksums.txt` alongside downloaded binaries and verify the SHA-256 hash before granting executable permissions or moving files to destination PATH directories. If hash calculation fails or mismatches, the temporary binary is immediately deleted and installation aborts.
 - **Sigstore / SLSA Cryptographic Build Provenance Attestations (`actions/attest-build-provenance@v2`)**:
-  Build provenance for every release binary pushed to `main` is cryptographically attested using GitHub's official Sigstore integration (`actions/attest-build-provenance@v2`). The build attestation records the source commit SHA, repository (`kuarezma/lazylocal`), GitHub Actions workflow run, and build parameters into a tamper-evident Sigstore ledger conforming to SLSA (Supply-chain Levels for Software Artifacts) provenance standards.
+  Build provenance for every release binary is cryptographically attested using GitHub's official Sigstore integration (`actions/attest-build-provenance@v2`). The build attestation records the source commit SHA, repository (`kuarezma/lazylocal`), GitHub Actions workflow run, and build parameters into a tamper-evident Sigstore ledger conforming to SLSA (Supply-chain Levels for Software Artifacts) provenance standards.
   Developers and automated environments can verify the cryptographic build provenance of any `lazylocal` binary using the GitHub CLI:
   ```sh
   gh attestation verify lazylocal --repo kuarezma/lazylocal
@@ -170,6 +175,8 @@ Untrusted HTTP traffic captured by the proxy (URLs, headers, JSON payloads) coul
   ```sh
   REQUIRE_ATTESTATION=1 curl -fsSL https://raw.githubusercontent.com/kuarezma/lazylocal/main/install.sh | sh
   ```
+- **Automated Post-Publish Verification Pipeline**:
+  Immediately following asset upload, the `release` job downloads the published assets directly from GitHub Releases (`gh release download "$TAG"`), validates their SHA-256 integrity (`sha256sum -c checksums.txt`), and cryptographically verifies the Sigstore build provenance attestation (`gh attestation verify "$bin" --repo "${GITHUB_REPOSITORY}"`) on every downloaded binary before concluding the pipeline.
 - **Continuous Automated Vulnerability Auditing (`govulncheck`)**:
   GitHub Actions CI enforces official Go vulnerability scanning via `govulncheck` on Go 1.24, blocking builds if known CVE vulnerabilities exist in transitive dependencies.
 - **Continuous Automated Native Go Fuzz Testing (`testing.F`)**:
@@ -197,7 +204,7 @@ While `lazylocal` implements defense-in-depth security layers, users and operato
    Installers (`install.sh` and `install.ps1`) are strictly fail-closed: if `checksums.txt` cannot be downloaded or hash verification fails, installation aborts immediately. Hashes are fetched over HTTPS from GitHub Releases. For higher security environments, users can enforce Sigstore SLSA build provenance via `REQUIRE_ATTESTATION=1`, pin the hash directly using `EXPECTED_SHA256=<hash>`, or use `go install github.com/kuarezma/lazylocal/cmd/lazylocal@v0.1.0` to verify against the immutable Google Go Checksum Database (`sum.golang.org`) transparency log.
 
 4. **Verified CI & `govulncheck` Evidence**:
-   Every commit and pull request triggers GitHub Actions CI verifying `go vet ./...`, `go test -v -race ./...` across Ubuntu Linux, macOS, and Windows on both Go 1.23 and 1.24, alongside official `govulncheck ./...` dependency auditing, native fuzz testing (`go test -fuzz=...`), and automated Sigstore provenance attestation. Live pipeline results can be audited at [https://github.com/kuarezma/lazylocal/actions/workflows/ci.yml](https://github.com/kuarezma/lazylocal/actions/workflows/ci.yml).
+   Every commit and pull request triggers GitHub Actions CI verifying `go vet ./...`, `go test -v -race ./...` across Ubuntu Linux, macOS, and Windows on both Go 1.23 and 1.24, alongside official `govulncheck ./...` dependency auditing and native fuzz testing (`go test -fuzz=...`). Tag releases trigger the isolated release pipeline providing automated Sigstore provenance attestation, immutable release enforcement, and post-publish verification. Live pipeline results can be audited at [https://github.com/kuarezma/lazylocal/actions/workflows/ci.yml](https://github.com/kuarezma/lazylocal/actions/workflows/ci.yml) and [https://github.com/kuarezma/lazylocal/actions/workflows/release.yml](https://github.com/kuarezma/lazylocal/actions/workflows/release.yml).
 
 ---
 
@@ -205,7 +212,7 @@ While `lazylocal` implements defense-in-depth security layers, users and operato
 
 All security controls are continuously verified in CI via automated Go regression and fuzz tests:
 
-| Security Control | Test Function | Test File | Description |
+| Security Control | Test Function / Mechanism | Test File / Workflow | Description |
 | :--- | :--- | :--- | :--- |
 | **DNS Rebinding Protection (Proxy)** | `TestProxyDNSRebindingProtection` | `internal/proxy/proxy_test.go` | Rejects non-`.localhost` domains with `HTTP 421 Misdirected Request` |
 | **Header Masking & Replay** | `TestProxyHeaderMaskingAndReplay` | `internal/proxy/proxy_test.go` | Verifies UI masking and faithful replay preservation |
@@ -223,7 +230,10 @@ All security controls are continuously verified in CI via automated Go regressio
 | **Native Go Fuzz Testing (Curl Escaping)** | `FuzzCurlCommand` | `internal/proxy/fuzz_test.go` | Fuzzes shell quoting, verifying no unescaped single quotes in generated commands |
 | **Native Go Fuzz Testing (Pins TOML)** | `FuzzParsePins` | `internal/config/fuzz_test.go` | Fuzzes configuration parser against malformed and hostile inputs |
 | **Native Go Fuzz Testing (ANSI Sanitization)** | `FuzzSanitizeTerm` | `internal/tui/fuzz_test.go` | Fuzzes terminal sanitizer against OSC/CSI escape injection and C0 controls |
-| **Sigstore / SLSA Build Attestation** | `actions/attest-build-provenance` | `.github/workflows/ci.yml` | Cryptographically attests binary build provenance in GitHub Sigstore ledger |
+| **Least-Privilege CI Permissions** | `permissions: contents: read` | `.github/workflows/ci.yml` | Read-only permissions on PR and branch CI, preventing token escalation |
+| **Immutable Release Enforcement** | `gh release upload` (no `--clobber`) | `.github/workflows/release.yml` | Pre-upload asset check and anti-clobber release enforcement |
+| **Sigstore / SLSA Build Attestation** | `actions/attest-build-provenance` | `.github/workflows/release.yml` | Cryptographically attests binary build provenance in GitHub Sigstore ledger |
+| **Post-Publish Verification Pipeline** | `gh release download` & `gh attestation verify` | `.github/workflows/release.yml` | Verifies SHA-256 and Sigstore provenance against live published release assets |
 
 To run the full unit and security test suite:
 ```sh

@@ -5,7 +5,7 @@ const path = require('path');
 const os = require('os');
 const { spawn, execSync } = require('child_process');
 
-const VERSION = '0.1.0';
+const VERSION = '0.1.1';
 
 function getBinaryName() {
   const platform = process.platform;

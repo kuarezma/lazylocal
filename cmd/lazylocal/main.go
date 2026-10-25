@@ -30,7 +30,7 @@ import (
 	"github.com/kuarezma/lazylocal/internal/web"
 )
 
-const version = "v0.1.0"
+var version = "v0.1.1"
 
 // Engine orchestrates discovery, reverse proxying, tap ring buffer, and web dashboard.
 type Engine struct {
