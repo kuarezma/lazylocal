@@ -22,7 +22,7 @@ Zero-config `.localhost` subdomains • In-flight HTTP tap & instant replay • 
 [![Go Version](https://img.shields.io/badge/go-%3E%3D1.22-blue.svg)](https://golang.org)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![npm](https://img.shields.io/npm/v/lazylocal.svg)](https://www.npmjs.com/package/lazylocal)
-[![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux-lightgrey.svg)]()
+[![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows-lightgrey.svg)]()
 
 [English](#-why-lazylocal) • [Türkçe Dokümantasyon](#-türkçe-özet)
 
@@ -33,10 +33,16 @@ Zero-config `.localhost` subdomains • In-flight HTTP tap & instant replay • 
 ## ⚡ 10-Second Quick Start
 
 ```sh
-# Run instantly with zero install:
+# Run instantly with zero install (macOS, Linux, Windows):
 npx lazylocal
 
-# Or install via Homebrew:
+# Windows (PowerShell one-liner):
+irm https://raw.githubusercontent.com/kuarezma/lazylocal/main/install.ps1 | iex
+
+# macOS / Linux (curl installer):
+curl -fsSL https://raw.githubusercontent.com/kuarezma/lazylocal/main/install.sh | sh
+
+# Or install via Homebrew (macOS & Linux):
 brew install ugur/tap/lazylocal
 
 # Or with Go:
@@ -76,10 +82,11 @@ Modern web development is a port nightmare:
 ## 🚀 4 Killer Features
 
 ### 1. Zero-Config `.localhost` Subdomains (RFC 6761)
-macOS and modern Linux resolvers resolve `*.localhost` to `127.0.0.1` natively.
-- No editing `/etc/hosts`
-- No `sudo` or root permissions required (runs on unprivileged `:7080`)
+macOS, modern Linux, and Windows (Windows 10/11) resolve `*.localhost` to `127.0.0.1` natively.
+- No editing `/etc/hosts` or `C:\Windows\System32\drivers\etc\hosts`
+- No `sudo` or Administrator permissions required (runs on unprivileged `:7080`)
 - No local DNS servers or dnsmasq to configure
+- Native platform scanner: `lsof` (macOS), `/proc/net/tcp` (Linux), and `netstat -ano -p tcp` + `tasklist` (Windows)
 - Automatic Git repository and branch naming:
   * Repo on `main`: `http://shop.localhost:7080`
   * Worktree on `feat-auth`: `http://feat-auth.shop.localhost:7080`
@@ -99,7 +106,9 @@ Background dev servers left behind by closed terminal tabs or deleted git worktr
 3. `duplicate_worktree`: Multiple instances serving the same repo, branch, and directory.
 4. `idle_traffic`: Dead server with no HTTP traffic.
 
-Press **`Z`** to sweep all zombies in 1 second. `lazylocal` issues `SIGTERM`, waits gracefully, and escalates to `SIGKILL` only if unresponsive.
+Press **`Z`** to sweep all zombies in 1 second.
+- On macOS & Linux: issues `SIGTERM`, waits gracefully, and escalates to `SIGKILL` only if unresponsive.
+- On Windows: gracefully executes `taskkill /PID <pid> /T`, waits gracefully, and escalates to `taskkill /F /PID <pid> /T` with fallback to `Process.Kill()`.
 
 ### 4. Deterministic Multi-Agent URL Routing (`lazylocal url`)
 When coordinating AI agents (Claude Code, OpenAI Codex, Gemini, Cursor) across multiple worktrees, pass `lazylocal url`:
@@ -140,27 +149,32 @@ Agents never collide over ports or overwrite each other's state.
 
 ## 📦 Installation
 
-### Option 1: Zero-Install via NPX
+### Option 1: Zero-Install via NPX (macOS, Linux, Windows)
 ```sh
 npx lazylocal
 ```
 
-### Option 2: Homebrew (macOS & Linux)
+### Option 2: Windows PowerShell One-Liner
+```powershell
+irm https://raw.githubusercontent.com/kuarezma/lazylocal/main/install.ps1 | iex
+```
+
+### Option 3: Homebrew (macOS & Linux)
 ```sh
 brew install ugur/tap/lazylocal
 ```
 
-### Option 3: Go Install
+### Option 4: Go Install
 ```sh
 go install github.com/kuarezma/lazylocal/cmd/lazylocal@latest
 ```
 
-### Option 4: Standalone Binary (GitHub Releases)
-Download precompiled binaries for macOS (Apple Silicon / Intel) and Linux (x86_64 / arm64) from [Releases](https://github.com/kuarezma/lazylocal/releases).
+### Option 5: Standalone Binary (GitHub Releases)
+Download precompiled binaries for macOS (Apple Silicon / Intel), Linux (x86_64 / arm64), and Windows (amd64 / arm64) from [Releases](https://github.com/kuarezma/lazylocal/releases).
 
+**macOS / Linux:**
 ```sh
-curl -fsSL https://github.com/kuarezma/lazylocal/releases/latest/download/lazylocal_darwin_arm64.tar.gz | tar -xz
-mv lazylocal /usr/local/bin/
+curl -fsSL https://raw.githubusercontent.com/kuarezma/lazylocal/main/install.sh | sh
 ```
 
 ---
@@ -243,11 +257,11 @@ sudo pfctl -F all -f /etc/pf.conf
 
 ### Öne Çıkan Yetenekler
 1. **Sıfır Yapılandırma `.localhost` Alt Alan Adları**:
-   macOS ve Linux üzerinde `/etc/hosts` düzenlemeden veya `sudo` gerekmeden her servis otomatik olarak `<dal>.<proje>.localhost:7080` adresini alır.
+   macOS, Linux ve Windows (10/11) üzerinde `/etc/hosts` düzenlemeden veya `sudo` / Yönetici izni gerekmeden her servis otomatik olarak `<dal>.<proje>.localhost:7080` adresini alır. Windows üzerinde `netstat -ano -p tcp` ve `tasklist` ile yerel süreçler sıfır yapılandırmayla taranır.
 2. **Trafik Yakalama & Anında Tekrar (`r`)**:
    Tüm HTTP istekleri ve yanıtları yakalanır. Terminal TUI'de **`r`** tuşuna basılarak hatalı (500) istekler orijinal gövde ve başlıklarla tekrar çalıştırılır; **`d`** ile yanıt farkı (diff) anlık incelenir.
 3. **Otonom Zombi Süreç Temizleyici (`Z`)**:
-   Kapanmış terminal sekmelerinden veya silinmiş Git worktree'lerinden arta kalan yetim Node/Python/Go geliştirici süreçlerini tespit eder. **`Z`** tuşu ile tek hamlede temizler.
+   Kapanmış terminal sekmelerinden veya silinmiş Git worktree'lerinden arta kalan yetim Node/Python/Go geliştirici süreçlerini tespit eder. Unix'te `SIGTERM`/`SIGKILL`, Windows'ta `taskkill /PID /T` ve `taskkill /F /PID /T` süreç ağacı sonlandırması ile tek hamlede temizler.
 4. **Yapay Zeka Ajan Desteği (`lazylocal url`)**:
    Claude Code, Codex, Gemini ve Cursor gibi araçların aynı port için çakışmasını engeller; her çalışma alanına deterministik adres sağlar.
 5. **İki Panel TUI & Web Hub Panosu (`hub.localhost`)**:

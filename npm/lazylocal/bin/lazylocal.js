@@ -11,61 +11,87 @@ function getBinaryName() {
   const platform = process.platform;
   const arch = process.arch;
 
-  if (platform !== 'darwin' && platform !== 'linux') {
-    console.error(`[lazylocal] Unsupported platform: ${platform}. Only macOS (darwin) and Linux are supported.`);
+  if (platform !== 'darwin' && platform !== 'linux' && platform !== 'win32') {
+    console.error(`[lazylocal] Unsupported platform: ${platform}. Only macOS, Linux, and Windows are supported.`);
     process.exit(1);
   }
 
+  const osName = platform === 'win32' ? 'windows' : platform;
   const goarch = arch === 'arm64' ? 'arm64' : (arch === 'x64' ? 'amd64' : null);
   if (!goarch) {
     console.error(`[lazylocal] Unsupported architecture: ${arch}. Only x64 and arm64 are supported.`);
     process.exit(1);
   }
 
-  return `lazylocal_${VERSION}_${platform}_${goarch}`;
+  const ext = platform === 'win32' ? '.exe' : '';
+  return `lazylocal_${VERSION}_${osName}_${goarch}${ext}`;
 }
 
 function findBinary() {
-  // 1. Check local repository development build: ../../../dist/lazylocal
-  const localRepoBin = path.resolve(__dirname, '../../../dist/lazylocal');
+  const isWin = process.platform === 'win32';
+  const binName = isWin ? 'lazylocal.exe' : 'lazylocal';
+
+  // 1. Check local repository development build: ../../../dist/lazylocal[.exe]
+  const localRepoBin = path.resolve(__dirname, '../../../dist', binName);
   if (fs.existsSync(localRepoBin)) {
     return localRepoBin;
   }
 
-  // 2. Check current working directory ./dist/lazylocal
-  const cwdBin = path.resolve(process.cwd(), 'dist/lazylocal');
+  // Also check ../../../dist/release/lazylocal-windows-amd64.exe etc.
+  const releaseDir = path.resolve(__dirname, '../../../dist/release');
+  if (fs.existsSync(releaseDir)) {
+    const arch = process.arch === 'arm64' ? 'arm64' : 'amd64';
+    const osPrefix = isWin ? 'windows' : (process.platform === 'darwin' ? 'darwin' : 'linux');
+    const cand = path.join(releaseDir, `lazylocal-${osPrefix}-${arch}${isWin ? '.exe' : ''}`);
+    if (fs.existsSync(cand)) {
+      return cand;
+    }
+  }
+
+  // 2. Check current working directory ./dist/lazylocal[.exe]
+  const cwdBin = path.resolve(process.cwd(), 'dist', binName);
   if (fs.existsSync(cwdBin)) {
     return cwdBin;
   }
 
-  // 3. Check ~/.lazylocal/bin/lazylocal
-  const userBin = path.join(os.homedir(), '.lazylocal', 'bin', 'lazylocal');
-  if (fs.existsSync(userBin)) {
-    return userBin;
+  // 3. Check ~/.local/bin and ~/.lazylocal/bin
+  const candidateDirs = [
+    path.join(os.homedir(), '.local', 'bin'),
+    path.join(os.homedir(), '.lazylocal', 'bin')
+  ];
+  for (const dir of candidateDirs) {
+    const candidate = path.join(dir, binName);
+    if (fs.existsSync(candidate)) {
+      return candidate;
+    }
   }
 
   // 4. Check if available on system PATH
   try {
-    const whichCmd = process.platform === 'win32' ? 'where' : 'which';
-    const sysPath = execSync(`${whichCmd} lazylocal 2>/dev/null`, { encoding: 'utf8' }).trim();
-    if (sysPath && fs.existsSync(sysPath) && sysPath !== __filename) {
-      return sysPath;
+    const whichCmd = isWin ? 'where' : 'which';
+    const nullDev = isWin ? '2>nul' : '2>/dev/null';
+    const rawOut = execSync(`${whichCmd} ${binName} ${nullDev}`, { encoding: 'utf8' }).trim();
+    if (rawOut) {
+      const firstLine = rawOut.split(/\r?\n/)[0].trim();
+      if (firstLine && fs.existsSync(firstLine) && firstLine !== __filename) {
+        return firstLine;
+      }
     }
   } catch (e) {
     // Not in PATH
   }
 
-  // 5. If Go compiler is installed locally, build on the fly into ~/.lazylocal/bin
+  // 5. If Go compiler is installed locally, build on the fly into ~/.local/bin
   try {
-    const hasGo = execSync('go version 2>/dev/null', { encoding: 'utf8' });
+    const nullDev = isWin ? '2>nul' : '2>/dev/null';
+    const hasGo = execSync(`go version ${nullDev}`, { encoding: 'utf8' });
     if (hasGo) {
-      const targetDir = path.join(os.homedir(), '.lazylocal', 'bin');
+      const targetDir = path.join(os.homedir(), '.local', 'bin');
       fs.mkdirSync(targetDir, { recursive: true });
-      const targetPath = path.join(targetDir, 'lazylocal');
       console.log(`[lazylocal] Building native binary from source...`);
       execSync(`go install github.com/kuarezma/lazylocal/cmd/lazylocal@latest`, { stdio: 'inherit' });
       const gopath = execSync('go env GOPATH', { encoding: 'utf8' }).trim() || path.join(os.homedir(), 'go');
-      const builtPath = path.join(gopath, 'bin', 'lazylocal');
+      const builtPath = path.join(gopath, 'bin', binName);
       if (fs.existsSync(builtPath)) {
         return builtPath;
       }
@@ -81,19 +107,23 @@ function main() {
   const binaryPath = findBinary();
 
   if (!binaryPath) {
+    const isWin = process.platform === 'win32';
     console.error(`[lazylocal] Native binary not found.
 Please build or install lazylocal using one of the following methods:
-  1) Local build:  make build  (or: go build -o dist/lazylocal ./cmd/lazylocal)
+  1) Local build:  go build -o dist/lazylocal${isWin ? '.exe' : ''} ./cmd/lazylocal
   2) Go install:   go install github.com/kuarezma/lazylocal/cmd/lazylocal@latest
-  3) Homebrew:     brew install ugur/tap/lazylocal
+  3) Installer:    ${isWin ? 'irm https://raw.githubusercontent.com/kuarezma/lazylocal/main/install.ps1 | iex' : 'curl -fsSL https://raw.githubusercontent.com/kuarezma/lazylocal/main/install.sh | sh'}
+  4) Homebrew:     brew install ugur/tap/lazylocal (macOS/Linux)
 `);
     process.exit(1);
   }
 
-  try {
-    fs.chmodSync(binaryPath, 0o755);
-  } catch (e) {
-    // Ignore chmod error if not owner
+  if (process.platform !== 'win32') {
+    try {
+      fs.chmodSync(binaryPath, 0o755);
+    } catch (e) {
+      // Ignore chmod error if not owner
+    }
   }
 
   const child = spawn(binaryPath, process.argv.slice(2), {
@@ -115,7 +145,9 @@ Please build or install lazylocal using one of the following methods:
   });
 
   process.on('SIGINT', () => child.kill('SIGINT'));
-  process.on('SIGTERM', () => child.kill('SIGTERM'));
+  if (process.platform !== 'win32') {
+    process.on('SIGTERM', () => child.kill('SIGTERM'));
+  }
 }
 
 main();

@@ -4,6 +4,7 @@ package discover
 
 import (
 	"context"
+	"encoding/csv"
 	"errors"
 	"fmt"
 	"os"
@@ -26,6 +27,9 @@ type Listener struct {
 	Port    int
 	Command string
 }
+
+// rawListener is an alias for Listener.
+type rawListener = Listener
 
 // ProcInfo is one row of the process table used for agent detection.
 type ProcInfo struct {
@@ -177,12 +181,29 @@ func (s *Scanner) listeners(ctx context.Context) ([]Listener, error) {
 		return ParseLsofListen(string(out), s.UID), nil
 	case "linux":
 		return s.linuxListeners()
+	case "windows":
+		return s.windowsListeners(ctx)
 	default:
 		return nil, fmt.Errorf("unsupported platform %q", s.goos)
 	}
 }
 
+func (s *Scanner) windowsListeners(ctx context.Context) ([]Listener, error) {
+	out, err := s.run(ctx, "netstat", "-ano", "-p", "tcp")
+	if err != nil {
+		return nil, err
+	}
+	return ParseNetstatWindows(string(out), s.UID), nil
+}
+
 func (s *Scanner) procTable(ctx context.Context) map[int]ProcInfo {
+	if s.goos == "windows" {
+		out, err := s.run(ctx, "tasklist", "/FO", "CSV", "/NH")
+		if err != nil {
+			return map[int]ProcInfo{}
+		}
+		return ParseTasklistCSV(string(out))
+	}
 	out, err := s.run(ctx, "ps", "-ww", "-axo", "pid=,ppid=,pgid=,uid=,command=")
 	if err != nil {
 		return map[int]ProcInfo{}
@@ -206,6 +227,9 @@ func (s *Scanner) cwds(ctx context.Context, ls []Listener) map[int]cwdInfo {
 	if s.goos == "linux" {
 		return s.linuxCwds(pids)
 	}
+	if s.goos == "windows" {
+		return s.windowsCwds(pids)
+	}
 	ids := make([]string, len(pids))
 	for i, pid := range pids {
 		ids[i] = strconv.Itoa(pid)
@@ -224,6 +248,10 @@ func (s *Scanner) cwds(ctx context.Context, ls []Listener) map[int]cwdInfo {
 		res[pid] = cwdInfo{Path: path, Exists: exists}
 	}
 	return res
+}
+
+func (s *Scanner) windowsCwds(pids []int) map[int]cwdInfo {
+	return windowsCwdsMap(pids)
 }
 
 // ParseLsofListen parses `lsof -nP -iTCP -sTCP:LISTEN -F pcnu` output. Only
@@ -456,4 +484,89 @@ func ParseProcNetTCP(data string, currentUID int) map[string]procNetSocket {
 		res[fields[9]] = procNetSocket{Port: int(port), UID: uid}
 	}
 	return res
+}
+
+// ParseNetstatWindows parses Windows `netstat -ano -p tcp` output.
+// Lines matching LISTENING TCP sockets are parsed into rawListeners.
+func ParseNetstatWindows(output string, currentUID int) []rawListener {
+	var out []rawListener
+	seen := make(map[[2]int]bool)
+
+	for _, line := range strings.Split(output, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		fields := strings.Fields(line)
+		if len(fields) < 5 {
+			continue
+		}
+		if !strings.EqualFold(fields[0], "TCP") {
+			continue
+		}
+		if !strings.EqualFold(fields[3], "LISTENING") {
+			continue
+		}
+		port, ok := parseListenPort(fields[1])
+		if !ok {
+			continue
+		}
+		pid, err := strconv.Atoi(fields[4])
+		if err != nil || pid <= 0 {
+			continue
+		}
+		key := [2]int{pid, port}
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
+		out = append(out, rawListener{
+			PID:  pid,
+			UID:  currentUID,
+			Port: port,
+		})
+	}
+	return out
+}
+
+// ParseTasklistCSV parses `tasklist /FO CSV /NH` output into a map of PID -> ProcInfo.
+func ParseTasklistCSV(output string) map[int]ProcInfo {
+	table := make(map[int]ProcInfo)
+	r := csv.NewReader(strings.NewReader(output))
+	r.FieldsPerRecord = -1
+	r.LazyQuotes = true
+	records, err := r.ReadAll()
+	if err != nil {
+		for _, line := range strings.Split(output, "\n") {
+			line = strings.TrimSpace(line)
+			if line == "" {
+				continue
+			}
+			lr := csv.NewReader(strings.NewReader(line))
+			if recs, err := lr.ReadAll(); err == nil && len(recs) > 0 {
+				records = append(records, recs[0])
+			}
+		}
+	}
+	for _, rec := range records {
+		if len(rec) < 2 {
+			continue
+		}
+		pid, err := strconv.Atoi(rec[1])
+		if err != nil || pid <= 0 {
+			continue
+		}
+		rawName := strings.TrimSpace(rec[0])
+		cmd := rawName
+		if strings.HasSuffix(strings.ToLower(cmd), ".exe") {
+			cmd = cmd[:len(cmd)-4]
+		}
+		table[pid] = ProcInfo{
+			PID:     pid,
+			UID:     os.Getuid(),
+			Command: cmd,
+			Cmdline: rawName,
+		}
+	}
+	return table
 }

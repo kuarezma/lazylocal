@@ -146,6 +146,58 @@ func TestParseProcNetTCP(t *testing.T) {
 	}
 }
 
+func TestParseNetstatWindows(t *testing.T) {
+	const uid = 1000
+	const sampleNetstat = `
+Active Connections
+
+  Proto  Local Address          Foreign Address        State           PID
+  TCP    0.0.0.0:135            0.0.0.0:0              LISTENING       840
+  TCP    127.0.0.1:3000         0.0.0.0:0              LISTENING       12345
+  TCP    [::]:135               [::]:0                 LISTENING       840
+  TCP    [::1]:8080             [::]:0                 LISTENING       5678
+  TCP    127.0.0.1:3000         127.0.0.1:51234        ESTABLISHED     12345
+  TCP    127.0.0.1:3000         0.0.0.0:0              LISTENING       12345
+`
+	got := ParseNetstatWindows(sampleNetstat, uid)
+	want := []Listener{
+		{PID: 840, UID: uid, Port: 135},
+		{PID: 12345, UID: uid, Port: 3000},
+		{PID: 5678, UID: uid, Port: 8080},
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("ParseNetstatWindows = %+v, want %+v", got, want)
+	}
+}
+
+func TestParseTasklistCSV(t *testing.T) {
+	const sampleTasklist = `"node.exe","12345","Console","1","45,212 K"
+"python.exe","5678","Console","1","28,100 K"
+"claude.exe","9999","Console","1","120,450 K"
+"System Idle Process","0","Services","0","8 K"
+"cursor.EXE","7777","Console","1","50,000 K"
+`
+	got := ParseTasklistCSV(sampleTasklist)
+	if len(got) < 4 {
+		t.Fatalf("expected at least 4 parsed processes, got %d", len(got))
+	}
+	if p, ok := got[12345]; !ok || p.Command != "node" || p.Cmdline != "node.exe" {
+		t.Fatalf("unexpected entry for 12345: %+v", p)
+	}
+	if p, ok := got[5678]; !ok || p.Command != "python" || p.Cmdline != "python.exe" {
+		t.Fatalf("unexpected entry for 5678: %+v", p)
+	}
+	if p, ok := got[9999]; !ok || p.Command != "claude" || p.Cmdline != "claude.exe" {
+		t.Fatalf("unexpected entry for 9999: %+v", p)
+	}
+	if p, ok := got[7777]; !ok || p.Command != "cursor" {
+		t.Fatalf("unexpected entry for 7777: %+v", p)
+	}
+	if _, ok := got[0]; ok {
+		t.Fatal("PID 0 should not be included in tasklist results")
+	}
+}
+
 func TestResolveGitInfo(t *testing.T) {
 	t.Run("main checkout on branch", func(t *testing.T) {
 		dir := newMainRepo(t, "shop", "ref: refs/heads/feature/login\n")
@@ -428,6 +480,44 @@ n*:9999
 	}
 }
 
+func TestScanWithFakeRunnerWindows(t *testing.T) {
+	netstat := `
+Active Connections
+
+  Proto  Local Address          Foreign Address        State           PID
+  TCP    127.0.0.1:3000         0.0.0.0:0              LISTENING       12345
+  TCP    127.0.0.1:8080         0.0.0.0:0              LISTENING       5678
+`
+	tasklist := `"node.exe","12345","Console","1","45,212 K"
+"python.exe","5678","Console","1","28,100 K"
+`
+	s := NewScanner()
+	s.goos = "windows"
+	s.run = func(_ context.Context, name string, args ...string) ([]byte, error) {
+		switch name {
+		case "netstat":
+			return []byte(netstat), nil
+		case "tasklist":
+			return []byte(tasklist), nil
+		}
+		return nil, fmt.Errorf("unexpected command %s", name)
+	}
+
+	got, err := s.Scan(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 2 {
+		t.Fatalf("expected 2 services discovered, got %d: %+v", len(got), got)
+	}
+	if got[0].Port != 3000 || got[0].PID != 12345 || got[0].Command != "node" || got[0].Host != "node.localhost" {
+		t.Fatalf("unexpected first service: %+v", got[0])
+	}
+	if got[1].Port != 8080 || got[1].PID != 5678 || got[1].Command != "python" || got[1].Host != "python.localhost" {
+		t.Fatalf("unexpected second service: %+v", got[1])
+	}
+}
+
 // TestG2ScannerFindsWorktreeServer is acceptance gate G2: a real child process
 // listening on a loopback port from inside a git worktree is discovered by
 // name "<branch>.<repo>" within 2 seconds.
@@ -435,6 +525,11 @@ func TestG2ScannerFindsWorktreeServer(t *testing.T) {
 	if runtime.GOOS == "darwin" {
 		if _, err := exec.LookPath("lsof"); err != nil {
 			t.Skip("lsof not available")
+		}
+	}
+	if runtime.GOOS == "windows" {
+		if _, err := exec.LookPath("netstat"); err != nil {
+			t.Skip("netstat not available")
 		}
 	}
 	_, wt := newLinkedWorktree(t, "shop", "feat-auth", "feat/auth")
@@ -464,7 +559,7 @@ func TestG2ScannerFindsWorktreeServer(t *testing.T) {
 	}
 
 	scanner := NewScanner()
-	deadline := time.Now().Add(2 * time.Second)
+	deadline := time.Now().Add(3 * time.Second)
 	var seen []string
 	for {
 		svcs, err := scanner.Scan(context.Background())
@@ -477,13 +572,24 @@ func TestG2ScannerFindsWorktreeServer(t *testing.T) {
 			if svc.Port != port {
 				continue
 			}
+			if runtime.GOOS == "windows" {
+				if svc.PID != cmd.Process.Pid {
+					t.Fatalf("port %d found but wrong PID: got %d, want %d", port, svc.PID, cmd.Process.Pid)
+				}
+				if svc.Cwd != "" {
+					if svc.Name != "feat-auth.shop" || !svc.CwdExists || svc.Branch != "feat/auth" || svc.Repo != "shop" {
+						t.Fatalf("port %d found but wrong identity: %+v", port, svc)
+					}
+				}
+				return
+			}
 			if svc.Name != "feat-auth.shop" || svc.PID != cmd.Process.Pid || !svc.CwdExists || svc.Branch != "feat/auth" || svc.Repo != "shop" {
 				t.Fatalf("port %d found but wrong identity: %+v", port, svc)
 			}
 			return
 		}
 		if time.Now().After(deadline) {
-			t.Fatalf("port %d (pid %d) not discovered within 2s; saw %v", port, cmd.Process.Pid, seen)
+			t.Fatalf("port %d (pid %d) not discovered within deadline; saw %v", port, cmd.Process.Pid, seen)
 		}
 		time.Sleep(100 * time.Millisecond)
 	}

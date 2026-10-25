@@ -13,7 +13,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest]
+        os: [ubuntu-latest, macos-latest, windows-latest]
         go: ['1.23', '1.24']
 
     steps:
@@ -35,17 +35,24 @@ jobs:
         run: |
           go vet ./...
 
-      - name: Run Test Suite with Race Detector
+      - name: Run Test Suite
+        shell: bash
         run: |
-          go test -race -v ./...
+          if [ "${{ runner.os }}" = "Windows" ]; then
+            go test -v ./...
+          else
+            go test -race -v ./...
+          fi
 
       - name: Compile Native Binary
+        shell: bash
         run: |
           mkdir -p dist
-          CGO_ENABLED=0 go build -ldflags="-s -w" -o dist/lazylocal ./cmd/lazylocal
+          CGO_ENABLED=0 go build -ldflags="-s -w" -o dist/lazylocal${{ runner.os == 'Windows' && '.exe' || '' }} ./cmd/lazylocal
 
       - name: Binary Smoke Tests
+        shell: bash
         run: |
-          ./dist/lazylocal --version
-          ./dist/lazylocal url --json
-          ./dist/lazylocal sweep --dry-run
+          ./dist/lazylocal${{ runner.os == 'Windows' && '.exe' || '' }} --version
+          ./dist/lazylocal${{ runner.os == 'Windows' && '.exe' || '' }} url --json
+          ./dist/lazylocal${{ runner.os == 'Windows' && '.exe' || '' }} sweep --dry-run

@@ -342,6 +342,10 @@ func (e *Engine) LaunchService(serviceID string) error {
 	var cmd *exec.Cmd
 	if runtime.GOOS == "darwin" && strings.HasSuffix(target.AppPath, ".app") {
 		cmd = exec.Command("open", target.AppPath)
+	} else if runtime.GOOS == "windows" {
+		cmd = exec.Command("cmd", "/c", "start", "", target.AppPath)
+	} else if runtime.GOOS == "linux" {
+		cmd = exec.Command("xdg-open", target.AppPath)
 	} else {
 		cmd = exec.Command("sh", target.AppPath)
 	}
@@ -769,12 +773,14 @@ func isTTY() bool {
 }
 
 func getTerminalSize() (int, int) {
-	out, err := exec.Command("stty", "size").Output()
-	if err == nil {
-		var rows, cols int
-		if _, err := fmt.Sscanf(strings.TrimSpace(string(out)), "%d %d", &rows, &cols); err == nil {
-			if cols >= 40 && rows >= 8 {
-				return cols, rows
+	if runtime.GOOS != "windows" {
+		out, err := exec.Command("stty", "size").Output()
+		if err == nil {
+			var rows, cols int
+			if _, err := fmt.Sscanf(strings.TrimSpace(string(out)), "%d %d", &rows, &cols); err == nil {
+				if cols >= 40 && rows >= 8 {
+					return cols, rows
+				}
 			}
 		}
 	}
@@ -833,6 +839,10 @@ func copyToClipboard(text string) {
 		_ = cmd.Run()
 	} else if runtime.GOOS == "linux" {
 		cmd := exec.Command("xclip", "-selection", "clipboard")
+		cmd.Stdin = strings.NewReader(text)
+		_ = cmd.Run()
+	} else if runtime.GOOS == "windows" {
+		cmd := exec.Command("clip")
 		cmd.Stdin = strings.NewReader(text)
 		_ = cmd.Run()
 	}
