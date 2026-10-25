@@ -33,12 +33,14 @@ func generateExchangeID() string {
 // captureReader wraps an io.ReadCloser to capture up to max bytes into a buffer
 // while passing the full unread stream through to the reader.
 type captureReader struct {
-	rc        io.ReadCloser
-	mu        sync.Mutex
-	buf       bytes.Buffer
-	max       int
-	total     int64
-	truncated bool
+	rc         io.ReadCloser
+	mu         sync.Mutex
+	buf        bytes.Buffer
+	max        int
+	total      int64
+	truncated  bool
+	onFinish   func()
+	finishOnce sync.Once
 }
 
 // limitCaptureReader is an alias for captureReader.
@@ -61,8 +63,15 @@ func newCaptureReader(rc io.ReadCloser, max int) *captureReader {
 	}
 }
 
+func (c *captureReader) finish() {
+	if c.onFinish != nil {
+		c.finishOnce.Do(c.onFinish)
+	}
+}
+
 func (c *captureReader) Read(p []byte) (n int, err error) {
 	if c.rc == nil {
+		c.finish()
 		return 0, io.EOF
 	}
 	n, err = c.rc.Read(p)
@@ -82,14 +91,19 @@ func (c *captureReader) Read(p []byte) (n int, err error) {
 		}
 		c.mu.Unlock()
 	}
+	if err != nil {
+		c.finish()
+	}
 	return n, err
 }
 
 func (c *captureReader) Close() error {
+	var err error
 	if c.rc != nil {
-		return c.rc.Close()
+		err = c.rc.Close()
 	}
-	return nil
+	c.finish()
+	return err
 }
 
 // Proxy is a dynamic .localhost HTTP reverse proxy with tap & replay capabilities.
@@ -243,6 +257,84 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		r.Header.Get("Upgrade") != "" ||
 		strings.Contains(strings.ToLower(r.Header.Get("Connection")), "upgrade")
 
+	var recordOnce sync.Once
+	recordExchange := func() {
+		recordOnce.Do(func() {
+			duration := time.Since(start)
+
+			var reqBody []byte
+			var reqBodySize int64
+			var reqTruncated bool
+			if reqCapture != nil {
+				reqBody, reqBodySize, reqTruncated = reqCapture.snapshot()
+			}
+
+			var respBody []byte
+			var respBodySize int64
+			var respTruncated bool
+			muStatus.Lock()
+			rc := respCapture
+			finalStatus := respStatusCode
+			finalErr := proxyErr
+			finalHeaders := respHeaders
+			finalContentType := respContentType
+			muStatus.Unlock()
+
+			if rc != nil {
+				respBody, respBodySize, respTruncated = rc.snapshot()
+			}
+
+			if isUpgrade && finalStatus == http.StatusOK {
+				finalStatus = http.StatusSwitchingProtocols
+			}
+
+			ex := model.Exchange{
+				ID:         generateExchangeID(),
+				ServiceID:  target.ID,
+				Service:    target.Name,
+				TargetPort: target.Port,
+				StartedAt:  start,
+				Duration:   duration,
+				DurationMs: float64(duration.Microseconds()) / 1000.0,
+				Req: model.HTTPRequestData{
+					Method:      r.Method,
+					Path:        r.URL.Path,
+					Query:       r.URL.RawQuery,
+					Host:        r.Host,
+					Headers:     maskedReqHeaders,
+					RawHeaders:  origRawHeaders,
+					Body:        reqBody,
+					BodySize:    reqBodySize,
+					Truncated:   reqTruncated,
+					ContentType: r.Header.Get("Content-Type"),
+				},
+				Resp: model.HTTPResponseData{
+					StatusCode:  finalStatus,
+					Status:      http.StatusText(finalStatus),
+					Headers:     finalHeaders,
+					Body:        respBody,
+					BodySize:    respBodySize,
+					Truncated:   respTruncated,
+					ContentType: finalContentType,
+				},
+				Truncated: reqTruncated || respTruncated,
+				Error:     finalErr,
+			}
+
+			if p.ring != nil {
+				p.ring.Record(ex)
+			}
+
+			if p.bus != nil {
+				p.bus.Publish(model.Event{
+					Type:      model.EventExchangeRecorded,
+					Exchange:  &ex,
+					ServiceID: target.ID,
+				})
+			}
+		})
+	}
+
 	rp := &httputil.ReverseProxy{
 		Transport:     p.transport,
 		FlushInterval: -1, // Immediate flushing for SSE / low-latency
@@ -266,16 +358,15 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			respStatusCode = resp.StatusCode
 			respHeaders = resp.Header.Clone()
 			respContentType = resp.Header.Get("Content-Type")
-			muStatus.Unlock()
-
 			if resp.StatusCode == http.StatusSwitchingProtocols {
-				// 101 Switching Protocols body is an io.ReadWriteCloser underlying connection.
-				// Do not wrap so ReverseProxy can hijack and duplex it directly.
+				muStatus.Unlock()
 				return nil
 			}
-
-			respCapture = newCaptureReader(resp.Body, capture.MaxBodyBytes)
-			resp.Body = respCapture
+			rc := newCaptureReader(resp.Body, capture.MaxBodyBytes)
+			rc.onFinish = recordExchange
+			respCapture = rc
+			resp.Body = rc
+			muStatus.Unlock()
 			return nil
 		},
 		ErrorHandler: func(rw http.ResponseWriter, req *http.Request, err error) {
@@ -283,6 +374,8 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			respStatusCode = http.StatusBadGateway
 			proxyErr = err.Error()
 			muStatus.Unlock()
+
+			recordExchange()
 
 			rw.Header().Set("Content-Type", "application/json")
 			rw.WriteHeader(http.StatusBadGateway)
@@ -296,80 +389,7 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// 6. Execute reverse proxy call
 	rp.ServeHTTP(w, r)
-
-	duration := time.Since(start)
-
-	// 7. Assemble Exchange Record
-	var reqBody []byte
-	var reqBodySize int64
-	var reqTruncated bool
-	if reqCapture != nil {
-		reqBody, reqBodySize, reqTruncated = reqCapture.snapshot()
-	}
-
-	var respBody []byte
-	var respBodySize int64
-	var respTruncated bool
-	if respCapture != nil {
-		respBody, respBodySize, respTruncated = respCapture.snapshot()
-	}
-
-	muStatus.Lock()
-	finalStatus := respStatusCode
-	finalErr := proxyErr
-	finalHeaders := respHeaders
-	finalContentType := respContentType
-	muStatus.Unlock()
-
-	if isUpgrade && finalStatus == http.StatusOK {
-		// When upgraded (e.g. 101 Switching Protocols), ModifyResponse is skipped by ReverseProxy
-		finalStatus = http.StatusSwitchingProtocols
-	}
-
-	ex := model.Exchange{
-		ID:         generateExchangeID(),
-		ServiceID:  target.ID,
-		Service:    target.Name,
-		TargetPort: target.Port,
-		StartedAt:  start,
-		Duration:   duration,
-		DurationMs: float64(duration.Microseconds()) / 1000.0,
-		Req: model.HTTPRequestData{
-			Method:      r.Method,
-			Path:        r.URL.Path,
-			Query:       r.URL.RawQuery,
-			Host:        r.Host,
-			Headers:     maskedReqHeaders,
-			RawHeaders:  origRawHeaders,
-			Body:        reqBody,
-			BodySize:    reqBodySize,
-			Truncated:   reqTruncated,
-			ContentType: r.Header.Get("Content-Type"),
-		},
-		Resp: model.HTTPResponseData{
-			StatusCode:  finalStatus,
-			Status:      http.StatusText(finalStatus),
-			Headers:     finalHeaders,
-			Body:        respBody,
-			BodySize:    respBodySize,
-			Truncated:   respTruncated,
-			ContentType: finalContentType,
-		},
-		Truncated: reqTruncated || respTruncated,
-		Error:     finalErr,
-	}
-
-	if p.ring != nil {
-		p.ring.Record(ex)
-	}
-
-	if p.bus != nil {
-		p.bus.Publish(model.Event{
-			Type:      model.EventExchangeRecorded,
-			Exchange:  &ex,
-			ServiceID: target.ID,
-		})
-	}
+	recordExchange()
 }
 
 // Replay re-executes a previously captured exchange using original unmasked headers and body.
