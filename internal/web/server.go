@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/kuarezma/lazylocal/internal/capture"
 	"github.com/kuarezma/lazylocal/internal/model"
 )
 
@@ -34,8 +35,19 @@ type Controller interface {
 type Server struct {
 	ctrl  Controller
 	bus   *model.Bus
+	ring  *capture.RingBuffer
 	token string
 	mux   *http.ServeMux
+}
+
+// IsNonIdempotentMethod returns true if the HTTP method is non-idempotent (POST, PUT, PATCH, DELETE).
+func IsNonIdempotentMethod(method string) bool {
+	return model.IsNonIdempotentMethod(method)
+}
+
+// SetRing sets the capture ring buffer used for exchange lookups and confirmation checks.
+func (s *Server) SetRing(ring *capture.RingBuffer) {
+	s.ring = ring
 }
 
 // NewServer creates a new Web Hub Server with an in-memory CSRF token.
@@ -348,6 +360,42 @@ func (s *Server) handleReplay(w http.ResponseWriter, r *http.Request) {
 	if exchangeID == "" {
 		http.Error(w, "Missing exchange id", http.StatusBadRequest)
 		return
+	}
+
+	// Look up exchange in ring buffer or controller
+	var origEx model.Exchange
+	var found bool
+	if s.ring != nil {
+		origEx, found = s.ring.Get(exchangeID)
+	}
+	if !found && s.ctrl != nil {
+		for _, e := range s.ctrl.Exchanges("", false) {
+			if e.ID == exchangeID {
+				origEx = e
+				found = true
+				break
+			}
+		}
+	}
+
+	if found {
+		method := origEx.Method
+		if method == "" {
+			method = origEx.Req.Method
+		}
+		if IsNonIdempotentMethod(method) {
+			confirmed := r.URL.Query().Get("confirm") == "true" || r.Header.Get("X-Confirm-Replay") == "true"
+			if !confirmed {
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusConflict)
+				_ = json.NewEncoder(w).Encode(map[string]any{
+					"error":                  "non-idempotent replay requires confirmation",
+					"requires_confirmation": true,
+					"method":                 method,
+				})
+				return
+			}
+		}
 	}
 
 	ex, err := s.ctrl.Replay(r.Context(), exchangeID)

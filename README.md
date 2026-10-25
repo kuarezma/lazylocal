@@ -196,9 +196,10 @@ lazylocal ls --json
 lazylocal url
 lazylocal url --json
 
-# Detect and sweep zombie dev processes:
-lazylocal sweep --dry-run
+# Sweep zombie processes (defaults to safe preview; terminate with --yes):
 lazylocal sweep
+lazylocal sweep --yes
+lazylocal sweep --dry-run
 
 # Print version:
 lazylocal version
@@ -209,7 +210,8 @@ lazylocal version
 - `--pins <path>`: Path to custom pinned services configuration (default: `pins.toml`).
 - `--interval <dur>`: Background scanner polling interval (default: `2s`).
 - `--headless`: Run in background headless mode without launching the TUI.
-- `--redact-memory`: Scrub sensitive headers (Authorization, Cookie, X-Api-Key) from in-memory replay buffers for zero-secret RAM retention.
+- `--redact-memory`: Scrub sensitive headers and bodies from in-memory replay buffers (default: `true`).
+- `--allow-raw-secrets`: Allow storing unredacted secrets in memory for faithful replay (disables redact-memory).
 - `--version`: Print version information and exit.
 
 ---
@@ -234,11 +236,17 @@ For complete threat models, architecture diagrams, and the automated regression 
    The reverse proxy strictly validates incoming `Host` headers. Any request targeting external domains (e.g., `evil.com`) is immediately rejected with `421 Misdirected Request`.
 3. **Subdomain-Isolated Constant-Time CSRF Tokens & Origin Allowlist**:
    Destructive API endpoints (`/api/kill`, `/api/replay`, `/api/sweep-zombies`) enforce constant-time CSRF token comparison (`crypto/subtle`) and validate that incoming `Origin` headers strictly match loopback or `*.localhost`.
-4. **Header Masking & Zero-Secret RAM Retention (`--redact-memory`)**:
-   Sensitive headers (`Authorization`, `Cookie`, `Set-Cookie`, `X-Api-Key`, `Proxy-Authorization`) are redacted to `"REDACTED"` in all display outputs. With `--redact-memory`, secrets are immediately scrubbed from in-memory replay buffers as well.
-5. **AI Agent Shell Protection & Graceful Zombie Sweep**:
-   Process termination checks `PGID == PID` before signaling process groups, protecting parent AI agent shells (Claude Code, Cursor, Codex). Windows and Unix processes are cleanly signaled before escalation.
-6. **Terminal Escape Sanitization**:
+4. **Sensitive Header & Body Redaction (`--redact-memory` Default-On)**:
+   Sensitive headers (`Authorization`, `Cookie`, `X-Api-Key`, etc.) and sensitive body fields (`password`, `token`, `secret`, `api_key`, `cvv`, etc. in JSON and form-urlencoded payloads) are scrubbed to `"REDACTED"` in memory by default. Opt-out for faithful raw secrets replay is available via `--allow-raw-secrets`.
+5. **Non-Idempotent Replay Confirmation Guard**:
+   Stateful methods (`POST`, `PUT`, `PATCH`, `DELETE`) require explicit user confirmation via Web UI dialog, TUI interactive prompt, or `?confirm=true` / `X-Confirm-Replay: true` header (`HTTP 409 Conflict` guard).
+6. **Safe Sweep Preview Mode & TOCTOU Protection**:
+   `lazylocal sweep` defaults to preview mode without killing processes unless `--yes` / `-y` is provided. Process termination validates live PID command names before signaling, preventing PID reuse race conditions.
+7. **AI Agent Shell Protection & Graceful Zombie Sweep**:
+   Process termination checks `PGID == PID` before signaling process groups, protecting parent AI agent shells (Claude Code, Cursor, Codex).
+8. **Cryptographic SHA-256 Installers & CI `govulncheck`**:
+   `install.sh` and `install.ps1` cryptographically verify release SHA-256 hashes against `checksums.txt`, and GitHub Actions CI enforces `govulncheck` vulnerability scanning on every push.
+9. **Terminal Escape Sanitization**:
    Untrusted HTTP headers and paths are stripped of ANSI/OSC/CSI control sequences to prevent terminal emulator injection.
 
 ---

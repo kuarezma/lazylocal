@@ -302,3 +302,24 @@ func TestCLISweepDryRun(t *testing.T) {
 		t.Fatalf("unexpected sweep dry run output: %q", output)
 	}
 }
+
+func TestCLISweepDefaultPreviewMode(t *testing.T) {
+	output, err := captureStdout(t, func() error {
+		return runSweep([]string{})
+	})
+	if err != nil {
+		t.Fatalf("runSweep failed: %v", err)
+	}
+
+	// If no zombies detected, it says workspace clean. If zombies were detected, it MUST be preview mode and not kill.
+	if strings.Contains(output, "Detected") {
+		if !strings.Contains(output, "Preview mode (no processes killed). Re-run with 'lazylocal sweep --yes' to terminate these processes.") {
+			t.Fatalf("expected preview mode prompt when --yes is not supplied, got: %s", output)
+		}
+		if strings.Contains(output, "Terminating zombie processes...") {
+			t.Fatalf("sweep terminated processes without --yes flag!")
+		}
+	} else if !strings.Contains(output, "No zombie dev processes") {
+		t.Fatalf("unexpected output: %s", output)
+	}
+}

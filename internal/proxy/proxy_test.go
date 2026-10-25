@@ -272,6 +272,7 @@ func TestAuthorizationRedactionAndReplay(t *testing.T) {
 	ring := capture.NewRingBuffer(10)
 	bus := model.NewBus()
 	p := NewProxy(ring, bus)
+	p.SetRedactMemory(false) // Disable redact-memory to allow testing unmasked raw Authorization replay
 	p.UpdateServices([]model.Service{
 		{ID: "auth-svc", Name: "auth", Port: port, Running: true},
 	})
@@ -384,6 +385,9 @@ func TestProxyRedactMemory(t *testing.T) {
 	ring := capture.NewRingBuffer(10)
 	bus := model.NewBus()
 	p := NewProxy(ring, bus)
+	if !p.RedactMemory() {
+		t.Fatalf("expected NewProxy() to have RedactMemory() == true by default")
+	}
 	p.SetRedactMemory(true)
 	p.UpdateServices([]model.Service{
 		{ID: "auth-svc", Name: "auth", Port: port, Running: true},
@@ -462,6 +466,110 @@ func TestProxyRedactMemory(t *testing.T) {
 	}
 	if calls[1].Cookie != "REDACTED" {
 		t.Fatalf("expected replay to send REDACTED for Cookie, got %q", calls[1].Cookie)
+	}
+}
+
+func TestProxyBodyRedaction(t *testing.T) {
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		w.Header().Set("Content-Type", r.Header.Get("Content-Type"))
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write(body)
+	}))
+	defer backend.Close()
+
+	u, _ := url.Parse(backend.URL)
+	port, _ := strconv.Atoi(u.Port())
+
+	ring := capture.NewRingBuffer(10)
+	bus := model.NewBus()
+	p := NewProxy(ring, bus) // RedactMemory is true by default
+	p.UpdateServices([]model.Service{
+		{ID: "redact-svc", Name: "redact", Port: port, Running: true},
+	})
+
+	proxyServer := httptest.NewServer(p)
+	defer proxyServer.Close()
+
+	// 1. Test JSON body redaction
+	jsonPayload := `{"username":"alice","password":"supersecret123","nested":{"api_key":"sk-999","token":"tok-abc"}}`
+	req1, _ := http.NewRequest("POST", proxyServer.URL+"/api/login", strings.NewReader(jsonPayload))
+	req1.Host = "redact.localhost"
+	req1.Header.Set("Content-Type", "application/json")
+
+	resp1, err := proxyServer.Client().Do(req1)
+	if err != nil {
+		t.Fatalf("JSON request failed: %v", err)
+	}
+	io.Copy(io.Discard, resp1.Body)
+	_ = resp1.Body.Close()
+
+	exchanges := ring.List("redact-svc", false)
+	if len(exchanges) != 1 {
+		t.Fatalf("expected 1 exchange recorded, got %d", len(exchanges))
+	}
+	jsonEx := exchanges[0]
+
+	// Verify ex.ReqBody, ex.RespBody, ex.Req.Body, ex.Resp.Body
+	for name, bodyBytes := range map[string][]byte{
+		"ex.ReqBody":   jsonEx.ReqBody,
+		"ex.RespBody":  jsonEx.RespBody,
+		"ex.Req.Body":  jsonEx.Req.Body,
+		"ex.Resp.Body": jsonEx.Resp.Body,
+	} {
+		bodyStr := string(bodyBytes)
+		if strings.Contains(bodyStr, "supersecret123") {
+			t.Fatalf("%s leaked raw password 'supersecret123': %s", name, bodyStr)
+		}
+		if strings.Contains(bodyStr, "sk-999") {
+			t.Fatalf("%s leaked raw api_key 'sk-999': %s", name, bodyStr)
+		}
+		if strings.Contains(bodyStr, "tok-abc") {
+			t.Fatalf("%s leaked raw token 'tok-abc': %s", name, bodyStr)
+		}
+		if !strings.Contains(bodyStr, "REDACTED") {
+			t.Fatalf("%s does not contain 'REDACTED': %s", name, bodyStr)
+		}
+		if !strings.Contains(bodyStr, `"username":"alice"`) && !strings.Contains(bodyStr, `"username": "alice"`) {
+			t.Fatalf("%s failed to preserve username 'alice': %s", name, bodyStr)
+		}
+	}
+
+	// 2. Test form-urlencoded body redaction
+	formPayload := "user=alice&password=123"
+	req2, _ := http.NewRequest("POST", proxyServer.URL+"/form/login", strings.NewReader(formPayload))
+	req2.Host = "redact.localhost"
+	req2.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	resp2, err := proxyServer.Client().Do(req2)
+	if err != nil {
+		t.Fatalf("form request failed: %v", err)
+	}
+	io.Copy(io.Discard, resp2.Body)
+	_ = resp2.Body.Close()
+
+	exchanges = ring.List("redact-svc", false)
+	if len(exchanges) != 2 {
+		t.Fatalf("expected 2 exchanges recorded, got %d", len(exchanges))
+	}
+	formEx := exchanges[0] // newest first
+
+	for name, bodyBytes := range map[string][]byte{
+		"ex.ReqBody":   formEx.ReqBody,
+		"ex.RespBody":  formEx.RespBody,
+		"ex.Req.Body":  formEx.Req.Body,
+		"ex.Resp.Body": formEx.Resp.Body,
+	} {
+		bodyStr := string(bodyBytes)
+		if strings.Contains(bodyStr, "123") {
+			t.Fatalf("%s leaked raw password '123': %s", name, bodyStr)
+		}
+		if !strings.Contains(bodyStr, "REDACTED") {
+			t.Fatalf("%s does not contain 'REDACTED': %s", name, bodyStr)
+		}
+		if !strings.Contains(bodyStr, "user=alice") {
+			t.Fatalf("%s failed to preserve 'user=alice': %s", name, bodyStr)
+		}
 	}
 }
 

@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
+	"strings"
 	"syscall"
 	"testing"
 	"time"
@@ -240,5 +241,23 @@ func TestKillServiceOnlySignalsPIDWhenPGIDNotLeader(t *testing.T) {
 	// Leader must STILL be running!
 	if !leader.stillRunning() {
 		t.Fatal("group leader was killed! Signal must only go to PID when PGID != PID")
+	}
+}
+
+func TestKillServiceTOCTOUPIDReuseMismatch(t *testing.T) {
+	c := startChild(t, "sleep", true)
+	svc := c.service()
+	svc.Cmd = "completely-different-process-name-12345"
+
+	err := KillService(svc, 1*time.Second)
+	if err == nil {
+		t.Fatal("expected KillService to fail with PID reuse error when svc.Cmd mismatches live process")
+	}
+	if !strings.Contains(err.Error(), "PID reuse detected") && !strings.Contains(err.Error(), "TOCTOU") {
+		t.Fatalf("expected TOCTOU PID reuse error, got %v", err)
+	}
+
+	if !c.stillRunning() {
+		t.Fatal("child was killed despite TOCTOU mismatch!")
 	}
 }

@@ -1082,13 +1082,15 @@
     }
 
     // API Helpers
-    async function apiPost(url, body) {
+    async function apiPost(url, body, extraHeaders = {}) {
+      const headers = {
+        'X-Lazylocal-Token': CSRF_TOKEN,
+        'Content-Type': 'application/json',
+        ...extraHeaders
+      };
       const res = await fetch(url, {
         method: 'POST',
-        headers: {
-          'X-Lazylocal-Token': CSRF_TOKEN,
-          'Content-Type': 'application/json'
-        },
+        headers: headers,
         body: body ? JSON.stringify(body) : undefined
       });
       if (!res.ok) {
@@ -1313,8 +1315,19 @@
     async function replayExchange(e, id) {
       if (e) e.stopPropagation();
       try {
+        const ex = allExchanges.find(x => x.id === id);
+        const method = (ex && ((ex.req && ex.req.method) || ex.method) || '').toUpperCase();
+        const isNonIdempotent = ['POST', 'PUT', 'PATCH', 'DELETE'].includes(method);
+        let confirmParam = '';
+        const extraHeaders = {};
+        if (isNonIdempotent) {
+          const ok = window.confirm(`Bu istek ${method} metodunu kullanıyor ve sunucu tarafında veri değişikliğine (yan etkilere) yol açabilir.\n\nTekrarlamak (replay) istediğinize emin misiniz?`);
+          if (!ok) return;
+          confirmParam = '&confirm=true';
+          extraHeaders['X-Confirm-Replay'] = 'true';
+        }
         showToast('İstek tekrarlanıyor...');
-        const res = await apiPost('/api/replay?id=' + encodeURIComponent(id));
+        const res = await apiPost('/api/replay?id=' + encodeURIComponent(id) + confirmParam, null, extraHeaders);
         showToast(`✓ İstek başarıyla tekrarlandı (HTTP ${res.resp ? res.resp.status_code : 200})`);
         loadExchanges();
       } catch (err) {

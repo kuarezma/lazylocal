@@ -50,10 +50,10 @@ Since modern browsers resolve all `*.localhost` domains to `127.0.0.1`, an untru
 
 ---
 
-## 4. Sensitive Header Masking & `--redact-memory` Mode
+## 4. Sensitive Header & Body Redaction with Zero-Secret RAM Retention (`--redact-memory`)
 
 ### Threat Model
-HTTP traffic passing through local proxies frequently contains bearer tokens, session cookies, and API keys. Displaying these credentials in terminal UIs or web dashboards exposes them to shoulder-surfing, screencasts, and log collection. Additionally, retaining unmasked credentials in process RAM creates a risk of secret extraction via memory dumps or swap inspection.
+HTTP traffic passing through local proxies frequently contains bearer tokens, session cookies, passwords, and API keys in headers and request/response bodies. Displaying these credentials in terminal UIs or web dashboards exposes them to shoulder-surfing, screencasts, and log collection. Additionally, retaining unmasked credentials in process RAM creates a risk of secret extraction via memory dumps, process inspection, or swap files.
 
 ### Protective Controls
 - **Display Masking**: In all UI views (TUI Inspector, Web Hub traffic inspector, JSON API outputs, and SSE event broadcasts), sensitive headers are automatically replaced with `"REDACTED"`:
@@ -62,34 +62,61 @@ HTTP traffic passing through local proxies frequently contains bearer tokens, se
   * `Set-Cookie`
   * `X-Api-Key`
   * `Proxy-Authorization`
-- **Default In-Memory Retention**: By default, unmasked headers are retained in the ring buffer solely to enable 1-key replay (`r`) without requiring the developer to re-authenticate manually.
-- **Zero-Secret RAM Retention (`--redact-memory`)**:
-  When launched with the `--redact-memory` flag:
+- **Default-On Zero-Secret RAM Retention (`--redact-memory` enabled by default)**:
+  By default out-of-the-box (`--redact-memory=true`), `lazylocal` scrubs sensitive credentials immediately upon capture from all in-memory buffers (`RawReqHeaders`, `Req.RawHeaders`, `Req.Body`, `Resp.Body`, `ReqBody`, and `RespBody`). Zero plain-text credentials or API tokens persist in process memory.
+- **Opt-In Raw Secrets Retention (`--allow-raw-secrets`)**:
+  Developers who explicitly need unredacted token re-transmission during instant replay can opt-in using `--allow-raw-secrets` (or `--redact-memory=false`):
   ```sh
-  lazylocal --redact-memory
+  lazylocal --allow-raw-secrets
   ```
-  `lazylocal` sanitizes `RawReqHeaders` in memory immediately upon capture. Sensitive credentials are wiped from RAM, ensuring zero sensitive tokens reside in memory buffers. When a replay is triggered under `--redact-memory`, the replay request transmits `"REDACTED"` rather than the raw secret.
+- **Automatic Sensitive Body Field Redaction**:
+  Whenever `--redact-memory` is active (default), `redactSensitiveBody` parses and sanitizes request and response bodies:
+  * **Protected Keys**: Any JSON key or form-urlencoded field name matching (case-insensitively, ignoring hyphens and underscores): `password`, `passwd`, `pass`, `secret`, `client_secret`, `token`, `access_token`, `refresh_token`, `id_token`, `api_key`, `apikey`, `private_key`, `authorization`, `credit_card`, `card_number`, `cvv`, `ssn`.
+  * **Deep JSON Traversal**: Valid JSON structures (objects and nested arrays) are recursively walked, replacing matched sensitive values with `"REDACTED"` while preserving surrounding non-sensitive fields.
+  * **Regex Fallback for Form-URLencoded & Truncated Payloads**: Form-urlencoded bodies (`application/x-www-form-urlencoded`) and truncated JSON payloads are sanitized via regex fallback, replacing sensitive values with `REDACTED` or `"REDACTED"`.
+  * **Stream Preservation**: Proxied live HTTP traffic between client and server is transmitted unmodified; only the ring buffer and TUI/Web inspection copies are scrubbed in RAM.
 
 ---
 
-## 5. Safe HTTP Replay Considerations
+## 5. Non-Idempotent HTTP Replay Protection (`POST`, `PUT`, `PATCH`, `DELETE`)
 
 ### Threat Model
-The instant replay feature (`r` key in TUI or Replay button in Web Hub) re-executes captured HTTP requests against the local backend service.
-
-### Operational Safety Guidelines
-- **Idempotent Requests (`GET`, `HEAD`, `OPTIONS`)**: Inherently safe to replay repeatedly during debugging.
-- **Non-Idempotent Requests (`POST`, `PUT`, `PATCH`, `DELETE`)**: Replaying stateful requests may cause secondary mutations in backend databases (e.g., duplicate orders, duplicate Stripe charges if pointing to live test keys, or unintended record deletions).
-- **Recommendation**: Ensure your local backend APIs utilize idempotency keys (`Idempotency-Key`) or mock external payment and webhook providers during development.
-
----
-
-## 6. Safe Process Termination & Zombie Sweep Guardrails
-
-### Threat Model
-Autonomous zombie hunters and process termination tools can accidentally kill unrelated user processes, system services, or the parent AI agent shell running the development session.
+The instant replay feature (`r` key in TUI or Replay button in Web Hub) re-executes captured HTTP requests against the local backend service. Replaying stateful non-idempotent requests (`POST`, `PUT`, `PATCH`, `DELETE`) without confirmation can trigger unintended database mutations, duplicate financial transactions, or secondary deletions.
 
 ### Protective Controls
+- **Method Classification**: `IsNonIdempotentMethod` identifies stateful HTTP methods (`POST`, `PUT`, `PATCH`, `DELETE`). Idempotent requests (`GET`, `HEAD`, `OPTIONS`) remain replayable instantly without interruption.
+- **Web API Confirmation Gate (`409 Conflict`)**:
+  In `/api/replay`, replaying any non-idempotent exchange requires explicit confirmation via `?confirm=true` query parameter or `X-Confirm-Replay: true` header. Requests lacking this flag are rejected with `HTTP 409 Conflict`:
+  ```json
+  {
+    "error": "non-idempotent replay requires confirmation",
+    "requires_confirmation": true,
+    "method": "POST"
+  }
+  ```
+- **Interactive TUI Confirmation Flow**:
+  In the TUI, pressing `r` on a `POST`, `PUT`, `PATCH`, or `DELETE` exchange stages the exchange in `pendingConfirmExchangeID` and prompts:
+  `"Confirm replay of [METHOD] [PATH]? Press 'y' or 'r' again to confirm, any other key to cancel"`
+  Pressing `y` or `r` a second time executes the replay; any other key cancels immediately.
+- **Web UI Confirmation Dialog**:
+  In the Web Hub, clicking Replay on a stateful method presents a confirmation dialog (`window.confirm`) explaining the potential mutation before transmitting `&confirm=true` and `X-Confirm-Replay: true`.
+
+---
+
+## 6. Safe Process Termination, Preview Mode & TOCTOU Protection
+
+### Threat Model
+Autonomous zombie process hunters and termination tools could accidentally terminate unrelated user processes, system daemons, or parent AI coding agent shells if process IDs (PIDs) are reused by the OS (Time-of-Check to Time-of-Use / TOCTOU race conditions).
+
+### Protective Controls
+- **Safe-by-Default Preview Mode for `lazylocal sweep`**:
+  Running `lazylocal sweep` without `--yes` (or `-y`) runs in safe preview mode: it lists candidate zombie processes, details the heuristic reason, and explicitly informs the user without terminating anything:
+  ```text
+  Preview mode (no processes killed). Re-run with 'lazylocal sweep --yes' to terminate these processes.
+  ```
+  Processes are only terminated when `--yes` (or `-y`) is explicitly passed.
+- **PID Identity Re-Verification (TOCTOU Race Prevention)**:
+  Before sending termination signals (`KillService`), `lazylocal` re-inspects the live running process via OS process tables (`ps -p <pid> -o comm=` on Unix, `tasklist /FI "PID eq <pid>"` on Windows). If the live command does not match `svc.Cmd` / `svc.Command`, termination is aborted immediately with a `PID reuse detected (TOCTOU violation)` error.
 - **Deterministic Heuristic Classification**: Processes are only classified as zombies under 4 strict criteria:
   1. `deleted_cwd`: Process current working directory has been deleted on disk.
   2. `orphan_ppid`: Parent process is init/launchd (`PPID == 1`) and the process command matches known dev runtimes (`node`, `vite`, `python`, `go`). System daemons (e.g., `rapportd`) are explicitly exempt.
@@ -100,9 +127,8 @@ Autonomous zombie hunters and process termination tools can accidentally kill un
 - **Parent AI Agent Shell Protection**:
   Before issuing process group signals, `lazylocal` verifies `PGID == PID`. If the target process is not the process group leader (for example, a dev command running in the same process group as Claude Code, Cursor, or a bash terminal), `lazylocal` signals **only** the target child PID, preserving the parent AI agent session and terminal shell.
 - **Graceful Escalation**:
-  * **Unix**: Sends `SIGTERM`, waits a graceful grace period (500ms), and only escalates to `SIGKILL` if the process fails to exit.
+  * **Unix**: Sends `SIGTERM`, waits a graceful grace period (Default: 3s), and only escalates to `SIGKILL` if the process fails to exit.
   * **Windows**: Executes `taskkill /PID <pid> /T`, waits gracefully, and escalates to `taskkill /F /PID <pid> /T` with fallback to `Process.Kill()`.
-- **Dry-Run Auditing**: Developers and agents can run `lazylocal sweep --dry-run` to preview candidate processes before any kill signals are issued.
 
 ---
 
@@ -117,7 +143,19 @@ Untrusted HTTP traffic captured by the proxy (URLs, headers, JSON payloads) coul
 
 ---
 
-## 8. Security Regression Test Suite
+## 8. Cryptographic Release Verification & CI Vulnerability Auditing
+
+### Protective Controls
+- **Cryptographic SHA-256 Checksum Verification**:
+  Official installers (`install.sh` and `install.ps1`) automatically download the signed release `checksums.txt` alongside downloaded binaries and verify the SHA-256 hash before granting executable permissions or moving files to destination PATH directories. If hash calculation fails or mismatches, the temporary binary is immediately deleted and installation aborts.
+- **Continuous Automated Vulnerability Auditing (`govulncheck`)**:
+  GitHub Actions CI enforces official Go vulnerability scanning via `govulncheck` on Go 1.24, blocking builds if known CVE vulnerabilities exist in transitive dependencies.
+- **Race Condition Detection (`-race`)**:
+  All unit, integration, and security tests run under the Go race detector in CI across Linux and macOS.
+
+---
+
+## 9. Security Regression Test Suite
 
 All security controls are continuously verified in CI via automated Go regression tests:
 
@@ -125,7 +163,11 @@ All security controls are continuously verified in CI via automated Go regressio
 | :--- | :--- | :--- | :--- |
 | **DNS Rebinding Protection (Proxy)** | `TestProxyDNSRebindingProtection` | `internal/proxy/proxy_test.go` | Rejects non-`.localhost` domains with `HTTP 421 Misdirected Request` |
 | **Header Masking & Replay** | `TestProxyHeaderMaskingAndReplay` | `internal/proxy/proxy_test.go` | Verifies UI masking and faithful replay preservation |
-| **Zero-Secret RAM Retention** | `TestProxyRedactMemory` | `internal/proxy/proxy_test.go` | Verifies in-memory redaction and sanitized replay under `--redact-memory` |
+| **Zero-Secret RAM Retention** | `TestProxyRedactMemory` | `internal/proxy/proxy_test.go` | Verifies default in-memory header redaction under `--redact-memory` |
+| **Sensitive Body Field Redaction** | `TestProxyBodyRedaction` | `internal/proxy/proxy_test.go` | Verifies recursive JSON and form-urlencoded body redaction for passwords, API keys, and tokens |
+| **Non-Idempotent Replay Confirmation** | `TestServerReplayConfirmationGuard` | `internal/web/server_test.go` | Enforces `409 Conflict` on unconfirmed POST/PUT/DELETE replay in Web API |
+| **TUI Replay Confirmation Flow** | `TestTUIReplayConfirmation` | `internal/tui/tui_test.go` | Verifies interactive confirmation prompts on POST/PUT/DELETE before dispatching replay |
+| **TOCTOU Process Identity Re-Verification** | `TestKillServiceTOCTOUPIDReuseMismatch` | `internal/procs/procs_unix_test.go` | Verifies live PID command check prevents PID reuse race conditions |
 | **Security Headers & Cross-Subdomain CSRF** | `TestServerSecurityHeadersAndCSRF` | `internal/web/server_test.go` | Enforces origin validation, constant-time CSRF tokens, and security headers |
 | **DNS Rebinding Protection (Web Hub)** | `TestServerDNSRebindingProtection` | `internal/web/server_test.go` | Verifies `HTTP 421` on foreign Host headers and `frame-ancestors 'none'` |
 | **Terminal ANSI Sanitization** | `TestTUI_ANSISanitization` | `internal/tui/tui_test.go` | Prevents OSC 52 and terminal escape sequence injection |
@@ -133,5 +175,5 @@ All security controls are continuously verified in CI via automated Go regressio
 
 To run the full security test suite:
 ```sh
-go test -v -race -run "^(TestProxyDNSRebindingProtection|TestProxyHeaderMaskingAndReplay|TestProxyRedactMemory|TestServerSecurityHeadersAndCSRF|TestServerDNSRebindingProtection|TestTUI_ANSISanitization|TestZombieClassifier)$" ./...
+go test -v -race -run "^(TestProxyDNSRebindingProtection|TestProxyHeaderMaskingAndReplay|TestProxyRedactMemory|TestProxyBodyRedaction|TestServerReplayConfirmationGuard|TestTUIReplayConfirmation|TestKillServiceTOCTOUPIDReuseMismatch|TestServerSecurityHeadersAndCSRF|TestServerDNSRebindingProtection|TestTUI_ANSISanitization|TestZombieClassifier)$" ./...
 ```

@@ -80,6 +80,7 @@ func NewEngine(port int, pinsPath string, interval time.Duration) (*Engine, erro
 	}
 
 	eng.webServer = web.NewServer(eng, bus)
+	eng.webServer.SetRing(eng.ring)
 	return eng, nil
 }
 
@@ -501,7 +502,8 @@ func main() {
 	pinsFlag := fs.String("pins", "", "Path to pins.toml configuration")
 	intervalFlag := fs.Duration("interval", 2*time.Second, "Discovery scanner periodic interval")
 	headlessFlag := fs.Bool("headless", false, "Run in background headless mode (no TUI)")
-	redactMemory := fs.Bool("redact-memory", false, "Scrub sensitive headers (Authorization, Cookie, X-Api-Key) from in-memory replay buffers")
+	redactMemory := fs.Bool("redact-memory", true, "Scrub sensitive headers and bodies from in-memory replay buffers (default: true)")
+	allowRawSecrets := fs.Bool("allow-raw-secrets", false, "Allow storing unredacted secrets in memory (disables redact-memory)")
 	versionFlag := fs.Bool("version", false, "Print version and exit")
 
 	if err := fs.Parse(os.Args[1:]); err != nil {
@@ -519,9 +521,9 @@ func main() {
 		os.Exit(1)
 	}
 
-	if *redactMemory {
+	if *allowRawSecrets || !*redactMemory {
 		proxySrv := eng.Proxy()
-		proxySrv.SetRedactMemory(*redactMemory)
+		proxySrv.SetRedactMemory(false)
 	}
 
 	if err := eng.Start(); err != nil {
@@ -641,6 +643,8 @@ func runURL(args []string) error {
 func runSweep(args []string) error {
 	fs := flag.NewFlagSet("sweep", flag.ContinueOnError)
 	dryRun := fs.Bool("dry-run", false, "List zombies without terminating them")
+	yes := fs.Bool("yes", false, "Confirm and terminate zombie processes")
+	fs.BoolVar(yes, "y", false, "Alias for --yes")
 	pinsPath := fs.String("pins", "", "Path to pins.toml configuration")
 	if err := fs.Parse(args); err != nil {
 		return err
@@ -681,6 +685,11 @@ func runSweep(args []string) error {
 
 	if *dryRun {
 		fmt.Println("\n(Dry-run mode: no processes were terminated)")
+		return nil
+	}
+
+	if !*yes {
+		fmt.Println("\nPreview mode (no processes killed). Re-run with 'lazylocal sweep --yes' to terminate these processes.")
 		return nil
 	}
 
@@ -752,7 +761,7 @@ COMMANDS:
   (default)     Start the reverse proxy, Web Hub dashboard, and interactive TUI
   list, ls      List all discovered dev servers and pinned applications (--json)
   url           Print deterministic .localhost URL for current git branch (--json)
-  sweep         Detect and terminate zombie dev processes (--dry-run)
+  sweep         Detect and terminate zombie dev processes (--yes / -y, --dry-run)
   version       Print version and build information
 
 FLAGS:
@@ -760,7 +769,8 @@ FLAGS:
   --pins <path>        Path to pins.toml configuration (default: pins.toml or builtin)
   --interval <dur>     Discovery scanner periodic interval (default: 2s)
   --headless           Run in background headless mode without TUI
-  --redact-memory      Scrub sensitive headers (Authorization, Cookie, X-Api-Key) from in-memory replay buffers
+  --redact-memory      Scrub sensitive headers and bodies from in-memory replay buffers (default: true)
+  --allow-raw-secrets  Allow storing unredacted secrets in memory for faithful replay (disables redact-memory)
   --version, -v        Print version and exit`)
 }
 

@@ -697,3 +697,137 @@ func TestServerDNSRebindingProtection(t *testing.T) {
 func TestServerSecurityHeadersAndCSRF(t *testing.T) {
 	TestCrossSubdomainCSRFProtection(t)
 }
+
+func TestServerReplayConfirmationGuard(t *testing.T) {
+	postExchangeID := "exc-post-99"
+	putExchangeID := "exc-put-99"
+	deleteExchangeID := "exc-del-99"
+	getExchangeID := "exc-get-99"
+
+	ctrl := &mockController{
+		exchanges: []model.Exchange{
+			{
+				ID:        postExchangeID,
+				ServiceID: "srv-api",
+				Method:    "POST",
+				Req:       model.HTTPRequestData{Method: "POST", Path: "/api/orders"},
+			},
+			{
+				ID:        putExchangeID,
+				ServiceID: "srv-api",
+				Method:    "PUT",
+				Req:       model.HTTPRequestData{Method: "PUT", Path: "/api/orders/1"},
+			},
+			{
+				ID:        deleteExchangeID,
+				ServiceID: "srv-api",
+				Method:    "DELETE",
+				Req:       model.HTTPRequestData{Method: "DELETE", Path: "/api/orders/1"},
+			},
+			{
+				ID:        getExchangeID,
+				ServiceID: "srv-api",
+				Method:    "GET",
+				Req:       model.HTTPRequestData{Method: "GET", Path: "/api/orders/1"},
+			},
+		},
+	}
+
+	srv := NewServer(ctrl, nil)
+	ts := httptest.NewServer(srv)
+	defer ts.Close()
+
+	allowedOrigin := "http://hub.localhost:7080"
+
+	// 1. GET exchange replays immediately (200 OK) without confirmation
+	{
+		req, _ := http.NewRequest(http.MethodPost, ts.URL+"/api/replay?id="+getExchangeID, nil)
+		req.Header.Set("X-Lazylocal-Token", srv.Token())
+		req.Header.Set("Origin", allowedOrigin)
+		resp, err := ts.Client().Do(req)
+		if err != nil {
+			t.Fatalf("GET replay failed: %v", err)
+		}
+		defer resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("expected 200 OK for GET replay, got %d", resp.StatusCode)
+		}
+	}
+
+	// 2. POST exchange without confirmation returns 409 Conflict
+	{
+		req, _ := http.NewRequest(http.MethodPost, ts.URL+"/api/replay?id="+postExchangeID, nil)
+		req.Header.Set("X-Lazylocal-Token", srv.Token())
+		req.Header.Set("Origin", allowedOrigin)
+		resp, err := ts.Client().Do(req)
+		if err != nil {
+			t.Fatalf("POST unconfirmed replay failed: %v", err)
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusConflict {
+			t.Fatalf("expected 409 Conflict for unconfirmed POST replay, got %d", resp.StatusCode)
+		}
+
+		var errBody struct {
+			Error                string `json:"error"`
+			RequiresConfirmation bool   `json:"requires_confirmation"`
+			Method               string `json:"method"`
+		}
+		if err := json.NewDecoder(resp.Body).Decode(&errBody); err != nil {
+			t.Fatalf("failed to decode 409 JSON: %v", err)
+		}
+		if !errBody.RequiresConfirmation || errBody.Method != "POST" {
+			t.Fatalf("expected requires_confirmation=true and method=POST, got %+v", errBody)
+		}
+	}
+
+	// 3. POST exchange with confirm=true query parameter succeeds (200 OK)
+	{
+		req, _ := http.NewRequest(http.MethodPost, ts.URL+"/api/replay?id="+postExchangeID+"&confirm=true", nil)
+		req.Header.Set("X-Lazylocal-Token", srv.Token())
+		req.Header.Set("Origin", allowedOrigin)
+		resp, err := ts.Client().Do(req)
+		if err != nil {
+			t.Fatalf("POST confirmed replay failed: %v", err)
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("expected 200 OK for confirmed POST replay, got %d", resp.StatusCode)
+		}
+	}
+
+	// 4. PUT exchange with X-Confirm-Replay: true header succeeds (200 OK)
+	{
+		req, _ := http.NewRequest(http.MethodPost, ts.URL+"/api/replay?id="+putExchangeID, nil)
+		req.Header.Set("X-Lazylocal-Token", srv.Token())
+		req.Header.Set("Origin", allowedOrigin)
+		req.Header.Set("X-Confirm-Replay", "true")
+		resp, err := ts.Client().Do(req)
+		if err != nil {
+			t.Fatalf("PUT confirmed replay failed: %v", err)
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("expected 200 OK for header-confirmed PUT replay, got %d", resp.StatusCode)
+		}
+	}
+
+	// 5. DELETE exchange without confirmation returns 409 Conflict
+	{
+		req, _ := http.NewRequest(http.MethodPost, ts.URL+"/api/replay?id="+deleteExchangeID, nil)
+		req.Header.Set("X-Lazylocal-Token", srv.Token())
+		req.Header.Set("Origin", allowedOrigin)
+		resp, err := ts.Client().Do(req)
+		if err != nil {
+			t.Fatalf("DELETE unconfirmed replay failed: %v", err)
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusConflict {
+			t.Fatalf("expected 409 Conflict for unconfirmed DELETE replay, got %d", resp.StatusCode)
+		}
+	}
+}

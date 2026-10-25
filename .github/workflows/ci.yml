@@ -44,6 +44,10 @@ jobs:
             go test -race -v ./...
           fi
 
+      - name: Run govulncheck
+        if: matrix.os == 'ubuntu-latest' && matrix.go == '1.24'
+        run: go run golang.org/x/vuln/cmd/govulncheck@latest ./...
+
       - name: Compile Native Binary
         shell: bash
         run: |
@@ -55,4 +59,5 @@ jobs:
         run: |
           ./dist/lazylocal${{ runner.os == 'Windows' && '.exe' || '' }} --version
           ./dist/lazylocal${{ runner.os == 'Windows' && '.exe' || '' }} url --json
+          ./dist/lazylocal${{ runner.os == 'Windows' && '.exe' || '' }} sweep
           ./dist/lazylocal${{ runner.os == 'Windows' && '.exe' || '' }} sweep --dry-run

@@ -236,7 +236,11 @@ func TestTUILargeStateKeysNoPanic(t *testing.T) {
 		t.Errorf("expected SelectedEx 1, got %d", m.SelectedEx)
 	}
 
-	// 5. Replay action
+	// 5. Replay action (non-idempotent requires confirmation on first 'r', executes on second 'r')
+	actPrompt := m.HandleKey("r")
+	if actPrompt.Type != ActionNone {
+		t.Errorf("expected ActionNone prompt on first 'r' for %s, got %+v", exs[1].ID, actPrompt)
+	}
 	actReplay := m.HandleKey("r")
 	if actReplay.Type != ActionReplay || actReplay.ExchangeID != exs[1].ID {
 		t.Errorf("expected ActionReplay for %s, got %+v", exs[1].ID, actReplay)
@@ -391,4 +395,71 @@ func TestTerminalEscapeSanitization(t *testing.T) {
 
 func TestTUI_ANSISanitization(t *testing.T) {
 	TestTerminalEscapeSanitization(t)
+}
+
+func TestTUIReplayConfirmation(t *testing.T) {
+	m := NewModel(120, 32)
+	exs := []model.Exchange{
+		{
+			ID:      "ex-get",
+			Service: "api",
+			Method:  "GET",
+			Path:    "/health",
+			Req: model.HTTPRequestData{
+				Method: "GET",
+				Path:   "/health",
+			},
+		},
+		{
+			ID:      "ex-post",
+			Service: "api",
+			Method:  "POST",
+			Path:    "/orders",
+			Req: model.HTTPRequestData{
+				Method: "POST",
+				Path:   "/orders",
+			},
+		},
+	}
+	m.SetExchanges(exs)
+	m.FocusPane = 1
+
+	// 1. GET request replays immediately on first 'r'
+	m.SelectedEx = 0
+	act := m.HandleKey("r")
+	if act.Type != ActionReplay || act.ExchangeID != "ex-get" {
+		t.Fatalf("expected immediate ActionReplay for GET, got %+v", act)
+	}
+
+	// 2. POST request: first 'r' prompts confirmation
+	m.SelectedEx = 1
+	actPrompt := m.HandleKey("r")
+	if actPrompt.Type != ActionNone {
+		t.Fatalf("expected ActionNone prompt for POST, got %+v", actPrompt)
+	}
+	if !strings.Contains(m.StatusMessage, "Confirm replay of POST /orders?") {
+		t.Fatalf("expected confirmation status prompt, got %q", m.StatusMessage)
+	}
+
+	// Any other key cancels
+	m.HandleKey("k")
+	if m.pendingConfirmExchangeID != "" {
+		t.Fatalf("expected pendingConfirmExchangeID to be cleared after 'k'")
+	}
+
+	// 3. POST request: prompt on 'r', then confirm with 'y'
+	m.SelectedEx = 1
+	m.HandleKey("r")
+	actY := m.HandleKey("y")
+	if actY.Type != ActionReplay || actY.ExchangeID != "ex-post" {
+		t.Fatalf("expected ActionReplay on 'y' confirmation, got %+v", actY)
+	}
+
+	// 4. POST request: prompt on 'r', then confirm with 'r'
+	m.SelectedEx = 1
+	m.HandleKey("r")
+	actR := m.HandleKey("r")
+	if actR.Type != ActionReplay || actR.ExchangeID != "ex-post" {
+		t.Fatalf("expected ActionReplay on 'r' re-press, got %+v", actR)
+	}
 }

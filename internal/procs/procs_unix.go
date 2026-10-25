@@ -6,11 +6,52 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
+	"path/filepath"
+	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
 	"github.com/kuarezma/lazylocal/internal/model"
 )
+
+// verifyProcessIdentity prevents TOCTOU race conditions / PID reuse by verifying
+// that the process still exists and its executable command matches svc.Cmd.
+func verifyProcessIdentity(svc model.Service) error {
+	cmdStr := svc.Cmd
+	if cmdStr == "" {
+		cmdStr = svc.Command
+	}
+	if cmdStr == "" || svc.PID <= 1 {
+		return nil
+	}
+
+	out, err := exec.Command("ps", "-p", strconv.Itoa(svc.PID), "-o", "comm=").Output()
+	if err != nil {
+		return fmt.Errorf("process pid %d no longer exists or cannot be inspected: %w", svc.PID, err)
+	}
+	liveComm := strings.TrimSpace(string(out))
+	if liveComm == "" {
+		return fmt.Errorf("process pid %d has terminated (empty command name)", svc.PID)
+	}
+
+	expected := strings.TrimSpace(cmdStr)
+	fields := strings.Fields(expected)
+	if len(fields) == 0 {
+		return nil
+	}
+
+	expectedBase := strings.ToLower(filepath.Base(fields[0]))
+	liveBase := strings.ToLower(filepath.Base(liveComm))
+
+	if expectedBase != liveBase &&
+		!strings.Contains(strings.ToLower(expected), liveBase) &&
+		!strings.Contains(strings.ToLower(liveComm), expectedBase) {
+		return fmt.Errorf("PID reuse detected (TOCTOU violation): pid %d expected command %q but found %q", svc.PID, cmdStr, liveComm)
+	}
+	return nil
+}
 
 // KillService stops svc: SIGTERM first, then SIGKILL if it is still alive
 // after gracePeriod (DefaultGracePeriod when <= 0). The signal goes to the
@@ -28,6 +69,14 @@ func KillService(svc model.Service, gracePeriod time.Duration) error {
 	if svc.PID == os.Getpid() {
 		return errors.New("refusing to kill lazylocal itself")
 	}
+
+	if err := verifyProcessIdentity(svc); err != nil {
+		if strings.Contains(err.Error(), "no longer exists") || strings.Contains(err.Error(), "has terminated") {
+			return nil // already gone
+		}
+		return err
+	}
+
 	if gracePeriod <= 0 {
 		gracePeriod = DefaultGracePeriod
 	}

@@ -2,6 +2,7 @@ package model
 
 import (
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 )
@@ -28,6 +29,7 @@ type Service struct {
 	PPID         int          `json:"ppid"`          // Parent Process ID
 	UID          int          `json:"uid"`           // Owner User ID
 	Command      string       `json:"command"`       // Executable / process name
+	Cmd          string       `json:"cmd,omitempty"` // Alias for Command
 	Cmdline      string       `json:"cmdline"`       // Full command line if available
 	Cwd          string       `json:"cwd"`           // Working directory
 	CwdExists    bool         `json:"cwd_exists"`    // False if directory was removed (e.g. deleted git worktree)
@@ -93,10 +95,24 @@ type Exchange struct {
 	DurationMs float64          `json:"duration_ms"`
 	Req        HTTPRequestData  `json:"req"`
 	Resp       HTTPResponseData `json:"resp"`
+	ReqBody    []byte           `json:"req_body,omitempty"`
+	RespBody   []byte           `json:"resp_body,omitempty"`
+	Method     string           `json:"method,omitempty"`
+	Path       string           `json:"path,omitempty"`
 	Truncated  bool             `json:"truncated"`
 	ReplayedOf string           `json:"replayed_of,omitempty"` // Original Exchange ID if this was triggered via Replay
 	Error      string           `json:"error,omitempty"`
 	RawReqHeaders http.Header   `json:"-"`                     // Raw request headers kept in memory for replay
+}
+
+// IsNonIdempotentMethod returns true if the HTTP method is non-idempotent (POST, PUT, PATCH, DELETE).
+func IsNonIdempotentMethod(method string) bool {
+	switch strings.ToUpper(strings.TrimSpace(method)) {
+	case "POST", "PUT", "PATCH", "DELETE":
+		return true
+	default:
+		return false
+	}
 }
 
 // EventType enumerates real-time bus events for TUI and Web SSE consumers.

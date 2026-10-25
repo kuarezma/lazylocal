@@ -43,6 +43,19 @@ func (r *RingBuffer) Record(ex model.Exchange) {
 		return
 	}
 
+	if ex.Method == "" {
+		ex.Method = ex.Req.Method
+	}
+	if ex.Path == "" {
+		ex.Path = ex.Req.Path
+	}
+	if len(ex.ReqBody) == 0 && len(ex.Req.Body) > 0 {
+		ex.ReqBody = ex.Req.Body
+	}
+	if len(ex.RespBody) == 0 && len(ex.Resp.Body) > 0 {
+		ex.RespBody = ex.Resp.Body
+	}
+
 	if r.count < r.capacity {
 		idx := (r.start + r.count) % r.capacity
 		r.buf[idx] = ex

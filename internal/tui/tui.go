@@ -276,7 +276,12 @@ type Model struct {
 
 	StatusMessage string
 	NoColor       bool
+
+	pendingConfirmExchangeID string
 }
+
+// TUI is an alias for Model.
+type TUI = Model
 
 // NewModel creates an initialized TUI Model.
 func NewModel(width, height int) *Model {
@@ -423,6 +428,31 @@ func (m *Model) HandleKey(key string) Action {
 		return Action{Type: ActionNone}
 	}
 
+	// Non-idempotent replay confirmation
+	if m.pendingConfirmExchangeID != "" {
+		if key == "y" || key == "Y" {
+			exID := m.pendingConfirmExchangeID
+			m.pendingConfirmExchangeID = ""
+			exs := m.filteredExchangesLocked()
+			var targetEx model.Exchange
+			for _, e := range exs {
+				if e.ID == exID {
+					targetEx = e
+					break
+				}
+			}
+			m.StatusMessage = "Replay triggered: " + exID
+			return Action{
+				Type:       ActionReplay,
+				ServiceID:  targetEx.ServiceID,
+				ExchangeID: exID,
+			}
+		} else if key != "r" {
+			m.pendingConfirmExchangeID = ""
+			m.StatusMessage = "Replay canceled"
+		}
+	}
+
 	switch key {
 	case "q", "ctrl+c":
 		return Action{Type: ActionQuit}
@@ -475,6 +505,34 @@ func (m *Model) HandleKey(key string) Action {
 		exs := m.filteredExchangesLocked()
 		if len(exs) > 0 && m.SelectedEx >= 0 && m.SelectedEx < len(exs) {
 			ex := exs[m.SelectedEx]
+			method := ex.Method
+			if method == "" {
+				method = ex.Req.Method
+			}
+			path := ex.Path
+			if path == "" {
+				path = ex.Req.Path
+			}
+			ex.Method = method
+			ex.Path = path
+
+			if m.pendingConfirmExchangeID == ex.ID {
+				m.pendingConfirmExchangeID = ""
+				m.StatusMessage = "Replay triggered: " + ex.ID
+				return Action{
+					Type:       ActionReplay,
+					ServiceID:  ex.ServiceID,
+					ExchangeID: ex.ID,
+				}
+			}
+
+			if model.IsNonIdempotentMethod(method) {
+				m.pendingConfirmExchangeID = ex.ID
+				m.StatusMessage = "Confirm replay of " + ex.Method + " " + ex.Path + "? Press 'y' or 'r' again to confirm, any other key to cancel"
+				return Action{Type: ActionNone}
+			}
+
+			m.pendingConfirmExchangeID = ""
 			m.StatusMessage = "Replay triggered: " + ex.ID
 			return Action{
 				Type:       ActionReplay,
@@ -482,6 +540,7 @@ func (m *Model) HandleKey(key string) Action {
 				ExchangeID: ex.ID,
 			}
 		}
+		m.pendingConfirmExchangeID = ""
 		return Action{Type: ActionNone}
 
 	case "c":

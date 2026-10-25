@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"regexp"
 	"sort"
 	"strings"
 	"sync"
@@ -135,9 +136,10 @@ func NewProxy(ring *capture.RingBuffer, bus *model.Bus) *Proxy {
 	}
 
 	return &Proxy{
-		ring:      ring,
-		bus:       bus,
-		transport: tr,
+		ring:         ring,
+		bus:          bus,
+		transport:    tr,
+		redactMemory: true,
 		client: &http.Client{
 			Transport: tr,
 			Timeout:   30 * time.Second,
@@ -304,10 +306,17 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				finalStatus = http.StatusSwitchingProtocols
 			}
 
+			if p.RedactMemory() {
+				reqBody = redactSensitiveBody(reqBody, r.Header.Get("Content-Type"))
+				respBody = redactSensitiveBody(respBody, finalContentType)
+			}
+
 			ex := model.Exchange{
 				ID:         generateExchangeID(),
 				ServiceID:  target.ID,
 				Service:    target.Name,
+				Method:     r.Method,
+				Path:       r.URL.Path,
 				TargetPort: target.Port,
 				StartedAt:  start,
 				Duration:   duration,
@@ -333,8 +342,10 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 					Truncated:   respTruncated,
 					ContentType: finalContentType,
 				},
-				Truncated: reqTruncated || respTruncated,
-				Error:     finalErr,
+				ReqBody:       reqBody,
+				RespBody:      respBody,
+				Truncated:     reqTruncated || respTruncated,
+				Error:         finalErr,
 				RawReqHeaders: origRawHeaders,
 			}
 
@@ -462,6 +473,8 @@ func (p *Proxy) Replay(ctx context.Context, exchangeID string) (*model.Exchange,
 		ID:         generateExchangeID(),
 		ServiceID:  origEx.ServiceID,
 		Service:    origEx.Service,
+		Method:     origEx.Req.Method,
+		Path:       origEx.Req.Path,
 		TargetPort: origEx.TargetPort,
 		StartedAt:  start,
 		Duration:   duration,
@@ -479,12 +492,15 @@ func (p *Proxy) Replay(ctx context.Context, exchangeID string) (*model.Exchange,
 			Truncated:   origEx.Req.Truncated,
 			ContentType: req.Header.Get("Content-Type"),
 		},
+		ReqBody:       origEx.Req.Body,
 		RawReqHeaders: req.Header.Clone(),
 	}
 
 	if p.RedactMemory() {
 		newEx.RawReqHeaders = maskHeaders(req.Header)
 		newEx.Req.RawHeaders = newEx.RawReqHeaders
+		newEx.Req.Body = redactSensitiveBody(newEx.Req.Body, newEx.Req.ContentType)
+		newEx.ReqBody = newEx.Req.Body
 	}
 
 	if err != nil {
@@ -522,6 +538,10 @@ func (p *Proxy) Replay(ctx context.Context, exchangeID string) (*model.Exchange,
 	extraBytes, _ := io.Copy(io.Discard, resp.Body)
 	totalBodySize := n + extraBytes
 
+	if p.RedactMemory() {
+		savedBody = redactSensitiveBody(savedBody, resp.Header.Get("Content-Type"))
+	}
+
 	newEx.Resp = model.HTTPResponseData{
 		StatusCode:  resp.StatusCode,
 		Status:      resp.Status,
@@ -531,6 +551,7 @@ func (p *Proxy) Replay(ctx context.Context, exchangeID string) (*model.Exchange,
 		Truncated:   respTruncated,
 		ContentType: resp.Header.Get("Content-Type"),
 	}
+	newEx.RespBody = savedBody
 	newEx.Truncated = newEx.Req.Truncated || respTruncated
 
 	p.ring.Record(*newEx)
@@ -675,4 +696,78 @@ func maskHeaders(h http.Header) http.Header {
 		}
 	}
 	return masked
+}
+
+func isSensitiveKey(k string) bool {
+	clean := strings.ToLower(k)
+	clean = strings.ReplaceAll(clean, "_", "")
+	clean = strings.ReplaceAll(clean, "-", "")
+	switch clean {
+	case "password", "passwd", "pass", "secret", "clientsecret",
+		"token", "accesstoken", "refreshtoken", "idtoken",
+		"apikey", "privatekey", "authorization",
+		"creditcard", "cardnumber", "cvv", "ssn":
+		return true
+	default:
+		return false
+	}
+}
+
+func redactJSONValue(v any) any {
+	switch val := v.(type) {
+	case map[string]any:
+		res := make(map[string]any, len(val))
+		for k, subV := range val {
+			if isSensitiveKey(k) {
+				res[k] = "REDACTED"
+			} else {
+				res[k] = redactJSONValue(subV)
+			}
+		}
+		return res
+	case []any:
+		res := make([]any, len(val))
+		for i, subV := range val {
+			res[i] = redactJSONValue(subV)
+		}
+		return res
+	default:
+		return v
+	}
+}
+
+var sensitiveBodyRegex = regexp.MustCompile(`(?i)("?(?:password|passwd|pass|secret|client_secret|clientsecret|token|access_token|accesstoken|refresh_token|refreshtoken|id_token|idtoken|api_key|apikey|private_key|privatekey|authorization|credit_card|creditcard|card_number|cardnumber|cvv|ssn)"?\s*([:=])\s*)("[^"]*"|'[^']*'|[^&\s,}]+)`)
+
+// redactSensitiveBody scrubs sensitive fields from JSON and form-urlencoded payloads in-memory.
+func redactSensitiveBody(body []byte, contentType string) []byte {
+	if len(body) == 0 {
+		return body
+	}
+
+	trimmed := bytes.TrimSpace(body)
+	if len(trimmed) > 0 && (trimmed[0] == '{' || trimmed[0] == '[' || strings.Contains(strings.ToLower(contentType), "json")) {
+		var val any
+		dec := json.NewDecoder(bytes.NewReader(trimmed))
+		dec.UseNumber()
+		if err := dec.Decode(&val); err == nil {
+			redacted := redactJSONValue(val)
+			if out, err := json.Marshal(redacted); err == nil {
+				return out
+			}
+		}
+	}
+
+	res := sensitiveBodyRegex.ReplaceAllFunc(body, func(m []byte) []byte {
+		sub := sensitiveBodyRegex.FindSubmatch(m)
+		if len(sub) < 4 {
+			return m
+		}
+		prefix := sub[1]
+		sep := sub[2]
+		if bytes.Equal(sep, []byte(":")) {
+			return append(prefix, []byte(`"REDACTED"`)...)
+		}
+		return append(prefix, []byte("REDACTED")...)
+	})
+	return res
 }
