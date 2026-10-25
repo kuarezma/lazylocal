@@ -155,13 +155,29 @@ Untrusted HTTP traffic captured by the proxy (URLs, headers, JSON payloads) coul
 
 ---
 
-## 8. Cryptographic Release Verification & CI Vulnerability Auditing
+## 8. Cryptographic Release Verification, Sigstore Attestations & Fuzz Testing
 
 ### Protective Controls
 - **Cryptographic SHA-256 Checksum Verification**:
-  Official installers (`install.sh` and `install.ps1`) automatically download the signed release `checksums.txt` alongside downloaded binaries and verify the SHA-256 hash before granting executable permissions or moving files to destination PATH directories. If hash calculation fails or mismatches, the temporary binary is immediately deleted and installation aborts.
+  Official installers (`install.sh` and `install.ps1`) automatically download the release `checksums.txt` alongside downloaded binaries and verify the SHA-256 hash before granting executable permissions or moving files to destination PATH directories. If hash calculation fails or mismatches, the temporary binary is immediately deleted and installation aborts.
+- **Sigstore / SLSA Cryptographic Build Provenance Attestations (`actions/attest-build-provenance@v2`)**:
+  Build provenance for every release binary pushed to `main` is cryptographically attested using GitHub's official Sigstore integration (`actions/attest-build-provenance@v2`). The build attestation records the source commit SHA, repository (`kuarezma/lazylocal`), GitHub Actions workflow run, and build parameters into a tamper-evident Sigstore ledger conforming to SLSA (Supply-chain Levels for Software Artifacts) provenance standards.
+  Developers and automated environments can verify the cryptographic build provenance of any `lazylocal` binary using the GitHub CLI:
+  ```sh
+  gh attestation verify lazylocal --repo kuarezma/lazylocal
+  ```
+  Both `install.sh` and `install.ps1` automatically verify this attestation if `gh` is installed. When high-security environments require strict verification, setting `REQUIRE_ATTESTATION=1` enforces a fail-closed abort if the Sigstore attestation is missing or invalid:
+  ```sh
+  REQUIRE_ATTESTATION=1 curl -fsSL https://raw.githubusercontent.com/kuarezma/lazylocal/main/install.sh | sh
+  ```
 - **Continuous Automated Vulnerability Auditing (`govulncheck`)**:
   GitHub Actions CI enforces official Go vulnerability scanning via `govulncheck` on Go 1.24, blocking builds if known CVE vulnerabilities exist in transitive dependencies.
+- **Continuous Automated Native Go Fuzz Testing (`testing.F`)**:
+  GitHub Actions CI continuously fuzzes the critical security parsers, credential scrubbers, and terminal sanitizers using native Go fuzz testing (`testing.F`). Every CI run executes fuzz targets across:
+  * `FuzzRedactSensitiveBody` (`internal/proxy`): Fuzzes recursive JSON parsers, regex fallbacks, and content-type classifiers with arbitrary byte sequences, seed corpora (JWTs, API keys, PEM keys, binary payloads), ensuring zero panics and verifying that synthetic secrets are completely scrubbed.
+  * `FuzzCurlCommand` (`internal/proxy`): Fuzzes `CurlCommand` with arbitrary paths, query parameters, headers, and request bodies to guarantee strict shell-quoting and escaping without unescaped single quotes.
+  * `FuzzParsePins` (`internal/config`): Fuzzes TOML pin configuration parsing with arbitrary malformed syntax, ensuring memory safety and no panics.
+  * `FuzzSanitizeTerm` (`internal/tui`): Fuzzes ANSI terminal escape sanitization with arbitrary OSC 52, CSI, and C0 control sequences, ensuring raw escape codes (`\x1b`), DEL, and terminal control characters are never leaked.
 - **Race Condition Detection (`-race`)**:
   All unit, integration, and security tests run under the Go race detector in CI across Linux and macOS.
 
@@ -177,17 +193,17 @@ While `lazylocal` implements defense-in-depth security layers, users and operato
 2. **Transient Stream Buffering**:
    When body capture is enabled (up to 64 KB), `captureReader` buffers bytes while reading the stream before `recordExchange` scrubs sensitive fields and zeroes (`clear()`) the temporary buffer. While the memory is zeroed immediately after snapshot and redaction, unredacted bytes exist in the temporary buffer during the transfer window. Using `--no-body` completely bypasses `captureReader` and prevents any body buffering.
 
-3. **Release Checksum Trust Model**:
-   Installers (`install.sh` and `install.ps1`) are strictly fail-closed: if `checksums.txt` cannot be downloaded or hash verification fails, installation aborts immediately. Hashes are fetched over HTTPS from GitHub Releases. For higher security environments independent of GitHub release assets, users can pin the hash directly using `EXPECTED_SHA256=<hash>`, or use `go install github.com/kuarezma/lazylocal/cmd/lazylocal@v0.1.0` to verify against the immutable Google Go Checksum Database (`sum.golang.org`) transparency log.
+3. **Release Checksum & Sigstore Trust Model**:
+   Installers (`install.sh` and `install.ps1`) are strictly fail-closed: if `checksums.txt` cannot be downloaded or hash verification fails, installation aborts immediately. Hashes are fetched over HTTPS from GitHub Releases. For higher security environments, users can enforce Sigstore SLSA build provenance via `REQUIRE_ATTESTATION=1`, pin the hash directly using `EXPECTED_SHA256=<hash>`, or use `go install github.com/kuarezma/lazylocal/cmd/lazylocal@v0.1.0` to verify against the immutable Google Go Checksum Database (`sum.golang.org`) transparency log.
 
 4. **Verified CI & `govulncheck` Evidence**:
-   Every commit and pull request triggers GitHub Actions CI verifying `go vet ./...`, `go test -v -race ./...` across Ubuntu Linux, macOS, and Windows on both Go 1.23 and 1.24, alongside official `govulncheck ./...` dependency auditing. Live pipeline results can be audited at [https://github.com/kuarezma/lazylocal/actions/workflows/ci.yml](https://github.com/kuarezma/lazylocal/actions/workflows/ci.yml).
+   Every commit and pull request triggers GitHub Actions CI verifying `go vet ./...`, `go test -v -race ./...` across Ubuntu Linux, macOS, and Windows on both Go 1.23 and 1.24, alongside official `govulncheck ./...` dependency auditing, native fuzz testing (`go test -fuzz=...`), and automated Sigstore provenance attestation. Live pipeline results can be audited at [https://github.com/kuarezma/lazylocal/actions/workflows/ci.yml](https://github.com/kuarezma/lazylocal/actions/workflows/ci.yml).
 
 ---
 
 ## 10. Security Regression Test Suite
 
-All security controls are continuously verified in CI via automated Go regression tests:
+All security controls are continuously verified in CI via automated Go regression and fuzz tests:
 
 | Security Control | Test Function | Test File | Description |
 | :--- | :--- | :--- | :--- |
@@ -203,8 +219,21 @@ All security controls are continuously verified in CI via automated Go regressio
 | **DNS Rebinding Protection (Web Hub)** | `TestServerDNSRebindingProtection` | `internal/web/server_test.go` | Verifies `HTTP 421` on foreign Host headers and `frame-ancestors 'none'` |
 | **Terminal ANSI Sanitization** | `TestTUI_ANSISanitization` | `internal/tui/tui_test.go` | Prevents OSC 52 and terminal escape sequence injection |
 | **Zombie Process Classifier** | `TestZombieClassifier` | `internal/discover/discover_test.go` | Verifies deterministic heuristic detection and twin-conflict resolution |
+| **Native Go Fuzz Testing (Body Redaction)** | `FuzzRedactSensitiveBody` | `internal/proxy/fuzz_test.go` | Fuzzes payload redaction with arbitrary bytes, ensuring zero leaks and no crashes |
+| **Native Go Fuzz Testing (Curl Escaping)** | `FuzzCurlCommand` | `internal/proxy/fuzz_test.go` | Fuzzes shell quoting, verifying no unescaped single quotes in generated commands |
+| **Native Go Fuzz Testing (Pins TOML)** | `FuzzParsePins` | `internal/config/fuzz_test.go` | Fuzzes configuration parser against malformed and hostile inputs |
+| **Native Go Fuzz Testing (ANSI Sanitization)** | `FuzzSanitizeTerm` | `internal/tui/fuzz_test.go` | Fuzzes terminal sanitizer against OSC/CSI escape injection and C0 controls |
+| **Sigstore / SLSA Build Attestation** | `actions/attest-build-provenance` | `.github/workflows/ci.yml` | Cryptographically attests binary build provenance in GitHub Sigstore ledger |
 
-To run the full security test suite:
+To run the full unit and security test suite:
 ```sh
-go test -v -race -run "^(TestProxyDNSRebindingProtection|TestProxyHeaderMaskingAndReplay|TestProxyRedactMemory|TestProxyBodyRedaction|TestProxyPatternAndNoBodyRedaction|TestServerReplayConfirmationGuard|TestTUIReplayConfirmation|TestKillServiceTOCTOUPIDReuseMismatch|TestServerSecurityHeadersAndCSRF|TestServerDNSRebindingProtection|TestTUI_ANSISanitization|TestZombieClassifier)$" ./...
+go test -v -race ./...
+```
+
+To run the continuous Go fuzz tests:
+```sh
+go test -fuzz=FuzzRedactSensitiveBody -fuzztime=3s ./internal/proxy
+go test -fuzz=FuzzCurlCommand -fuzztime=3s ./internal/proxy
+go test -fuzz=FuzzParsePins -fuzztime=3s ./internal/config
+go test -fuzz=FuzzSanitizeTerm -fuzztime=3s ./internal/tui
 ```

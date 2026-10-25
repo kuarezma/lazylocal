@@ -80,6 +80,28 @@ if [ "$EXPECTED_HASH" != "$ACTUAL_HASH" ]; then
 fi
 echo "✅ Checksum verified: $(printf '%.16s' "$ACTUAL_HASH")..."
 
+# Sigstore / SLSA Build Provenance Attestation Verification
+REQUIRE_ATTESTATION="${REQUIRE_ATTESTATION:-0}"
+if [ "$REQUIRE_ATTESTATION" = "1" ]; then
+  if ! command -v gh >/dev/null 2>&1; then
+    echo "❌ Error: REQUIRE_ATTESTATION=1 is set, but GitHub CLI ('gh') is not installed. Aborting (fail-closed)." >&2
+    rm -f "$TMP_FILE" "$TMP_CHECKSUMS"
+    exit 1
+  fi
+  echo "🔒 Verifying Sigstore SLSA build provenance (strict mode)..."
+  if gh attestation verify "$TMP_FILE" --repo "$REPO" >/dev/null 2>&1; then
+    echo "✅ Sigstore SLSA build provenance verified via GitHub CLI"
+  else
+    echo "❌ Security Alert: Sigstore build provenance attestation verification failed for repo ${REPO}. Aborting (fail-closed)." >&2
+    rm -f "$TMP_FILE" "$TMP_CHECKSUMS"
+    exit 1
+  fi
+elif command -v gh >/dev/null 2>&1; then
+  if gh attestation verify "$TMP_FILE" --repo "$REPO" >/dev/null 2>&1; then
+    echo "✅ Sigstore SLSA build provenance verified via GitHub CLI"
+  fi
+fi
+
 chmod +x "$TMP_FILE"
 mv "$TMP_FILE" "${INSTALL_DIR}/lazylocal"
 

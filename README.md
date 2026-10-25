@@ -42,6 +42,9 @@ irm https://raw.githubusercontent.com/kuarezma/lazylocal/main/install.ps1 | iex
 # macOS / Linux (curl installer):
 curl -fsSL https://raw.githubusercontent.com/kuarezma/lazylocal/main/install.sh | sh
 
+# Enforce strict Sigstore SLSA build provenance attestation (fail-closed):
+REQUIRE_ATTESTATION=1 curl -fsSL https://raw.githubusercontent.com/kuarezma/lazylocal/main/install.sh | sh
+
 # Or install via Homebrew (macOS & Linux):
 brew install kuarezma/tap/lazylocal
 
@@ -245,10 +248,14 @@ For complete threat models, architecture diagrams, and the automated regression 
    `lazylocal sweep` defaults to preview mode without killing processes unless `--yes` / `-y` is provided. Process termination validates live PID command names before signaling, preventing PID reuse race conditions.
 7. **AI Agent Shell Protection & Graceful Zombie Sweep**:
    Process termination checks `PGID == PID` before signaling process groups, protecting parent AI agent shells (Claude Code, Cursor, Codex).
-8. **Cryptographic SHA-256 Installers & CI `govulncheck`**:
-   `install.sh` and `install.ps1` cryptographically verify release SHA-256 hashes against `checksums.txt`, and GitHub Actions CI enforces `govulncheck` vulnerability scanning on every push.
-9. **Terminal Escape Sanitization**:
+8. **Cryptographic Release Verification & Sigstore SLSA Build Provenance**:
+   `install.sh` and `install.ps1` cryptographically verify release SHA-256 hashes against `checksums.txt`. Binaries built in CI are signed with cryptographic build provenance attestations via GitHub Sigstore (`actions/attest-build-provenance@v2`). Installers verify this provenance via GitHub CLI (`gh attestation verify lazylocal --repo kuarezma/lazylocal`), and allow strict fail-closed enforcement via `REQUIRE_ATTESTATION=1`.
+9. **Continuous Automated Native Go Fuzz Testing (`testing.F`)**:
+   Continuous native Go fuzz tests (`FuzzRedactSensitiveBody`, `FuzzCurlCommand`, `FuzzParsePins`, `FuzzSanitizeTerm`) run in GitHub Actions CI to guarantee zero panics, strict shell-escape boundaries, and credential scrubbing across hostile, malformed, and arbitrary byte inputs.
+10. **Terminal Escape Sanitization**:
    Untrusted HTTP headers and paths are stripped of ANSI/OSC/CSI control sequences to prevent terminal emulator injection.
+11. **Continuous Automated Vulnerability Auditing (`govulncheck`) & Race Detection**:
+   GitHub Actions CI enforces `govulncheck` vulnerability scanning on Go 1.24 and runs the entire test suite with `-race` across Linux and macOS.
 
 ---
 

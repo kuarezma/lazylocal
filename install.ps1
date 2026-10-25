@@ -61,6 +61,27 @@ try {
         throw $_
     }
 
+    # Sigstore / SLSA Build Provenance Attestation Verification
+    $requireAttestation = ($env:REQUIRE_ATTESTATION -eq "1")
+    $hasGh = [bool](Get-Command gh -ErrorAction SilentlyContinue)
+
+    if ($requireAttestation) {
+        if (-not $hasGh) {
+            throw "REQUIRE_ATTESTATION=1 is set, but GitHub CLI ('gh') is not installed or not in PATH."
+        }
+        Write-Host "🔒 Verifying Sigstore SLSA build provenance (strict mode)..." -ForegroundColor Cyan
+        & gh attestation verify $tempFile --repo $repo 2>&1 | Out-Null
+        if ($LASTEXITCODE -ne 0) {
+            throw "Sigstore SLSA build provenance verification failed for repository $repo (fail-closed)."
+        }
+        Write-Host "✅ Sigstore SLSA build provenance verified via GitHub CLI" -ForegroundColor Green
+    } elseif ($hasGh) {
+        & gh attestation verify $tempFile --repo $repo 2>&1 | Out-Null
+        if ($LASTEXITCODE -eq 0) {
+            Write-Host "✅ Sigstore SLSA build provenance verified via GitHub CLI" -ForegroundColor Green
+        }
+    }
+
     Move-Item -Path $tempFile -Destination $targetExe -Force
 } catch {
     Write-Error "Failed to install lazylocal: $_"
