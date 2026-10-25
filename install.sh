@@ -44,36 +44,41 @@ echo "⚡ Downloading lazylocal (${OS}/${ARCH}) from ${URL}..."
 curl -fsSL "$URL" -o "$TMP_FILE"
 
 echo "🔒 Verifying SHA-256 checksum..."
-if curl -fsSL "$CHECKSUMS_URL" -o "$TMP_CHECKSUMS" 2>/dev/null; then
+if [ -n "${EXPECTED_SHA256:-}" ]; then
+  EXPECTED_HASH="$EXPECTED_SHA256"
+else
+  if ! curl -fsSL "$CHECKSUMS_URL" -o "$TMP_CHECKSUMS"; then
+    echo "❌ Error: Failed to download checksums.txt from ${CHECKSUMS_URL}. Aborting installation (fail-closed)." >&2
+    rm -f "$TMP_FILE" "$TMP_CHECKSUMS"
+    exit 1
+  fi
   EXPECTED_HASH="$(grep "${BINARY}" "$TMP_CHECKSUMS" | awk '{print $1}')"
   if [ -z "$EXPECTED_HASH" ]; then
     echo "❌ Error: Could not find checksum for ${BINARY} in checksums.txt" >&2
-    rm -f "$TMP_FILE"
+    rm -f "$TMP_FILE" "$TMP_CHECKSUMS"
     exit 1
   fi
-
-  ACTUAL_HASH=""
-  if command -v sha256sum >/dev/null 2>&1; then
-    ACTUAL_HASH="$(sha256sum "$TMP_FILE" | awk '{print $1}')"
-  elif command -v shasum >/dev/null 2>&1; then
-    ACTUAL_HASH="$(shasum -a 256 "$TMP_FILE" | awk '{print $1}')"
-  else
-    echo "❌ Error: Neither sha256sum nor shasum found for cryptographic verification" >&2
-    rm -f "$TMP_FILE"
-    exit 1
-  fi
-
-  if [ "$EXPECTED_HASH" != "$ACTUAL_HASH" ]; then
-    echo "❌ Security Alert: SHA-256 Checksum verification failed!" >&2
-    echo "  Expected: $EXPECTED_HASH" >&2
-    echo "  Actual:   $ACTUAL_HASH" >&2
-    rm -f "$TMP_FILE"
-    exit 1
-  fi
-  echo "✅ Checksum verified: ${ACTUAL_HASH:0:16}..."
-else
-  echo "⚠️  Warning: checksums.txt not available on release; proceeding." >&2
 fi
+
+ACTUAL_HASH=""
+if command -v sha256sum >/dev/null 2>&1; then
+  ACTUAL_HASH="$(sha256sum "$TMP_FILE" | awk '{print $1}')"
+elif command -v shasum >/dev/null 2>&1; then
+  ACTUAL_HASH="$(shasum -a 256 "$TMP_FILE" | awk '{print $1}')"
+else
+  echo "❌ Error: Neither sha256sum nor shasum found for cryptographic verification" >&2
+  rm -f "$TMP_FILE" "$TMP_CHECKSUMS"
+  exit 1
+fi
+
+if [ "$EXPECTED_HASH" != "$ACTUAL_HASH" ]; then
+  echo "❌ Security Alert: SHA-256 Checksum verification failed!" >&2
+  echo "  Expected: $EXPECTED_HASH" >&2
+  echo "  Actual:   $ACTUAL_HASH" >&2
+  rm -f "$TMP_FILE" "$TMP_CHECKSUMS"
+  exit 1
+fi
+echo "✅ Checksum verified: $(printf '%.16s' "$ACTUAL_HASH")..."
 
 chmod +x "$TMP_FILE"
 mv "$TMP_FILE" "${INSTALL_DIR}/lazylocal"

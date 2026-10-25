@@ -1,5 +1,7 @@
 # Security Architecture & Threat Model
 
+[![CI](https://github.com/kuarezma/lazylocal/actions/workflows/ci.yml/badge.svg)](https://github.com/kuarezma/lazylocal/actions/workflows/ci.yml)
+
 `lazylocal` is a zero-configuration local development reverse proxy, HTTP tap, and dev process manager designed for human developers and autonomous AI coding agents (Claude Code, OpenAI Codex, Gemini CLI, Cursor). Because local development environments handle sensitive credentials, source code, and listening sockets, `lazylocal` implements defense-in-depth security guardrails.
 
 This document describes the security architecture, threat model, protective controls, and the automated security regression test suite.
@@ -50,7 +52,7 @@ Since modern browsers resolve all `*.localhost` domains to `127.0.0.1`, an untru
 
 ---
 
-## 4. Sensitive Header & Body Redaction with Zero-Secret RAM Retention (`--redact-memory`)
+## 4. In-Memory Header & Body Redaction (`--redact-memory`, default) and Zero-Body Mode (`--no-body`)
 
 ### Threat Model
 HTTP traffic passing through local proxies frequently contains bearer tokens, session cookies, passwords, and API keys in headers and request/response bodies. Displaying these credentials in terminal UIs or web dashboards exposes them to shoulder-surfing, screencasts, and log collection. Additionally, retaining unmasked credentials in process RAM creates a risk of secret extraction via memory dumps, process inspection, or swap files.
@@ -62,17 +64,27 @@ HTTP traffic passing through local proxies frequently contains bearer tokens, se
   * `Set-Cookie`
   * `X-Api-Key`
   * `Proxy-Authorization`
-- **Default-On Zero-Secret RAM Retention (`--redact-memory` enabled by default)**:
-  By default out-of-the-box (`--redact-memory=true`), `lazylocal` scrubs sensitive credentials immediately upon capture from all in-memory buffers (`RawReqHeaders`, `Req.RawHeaders`, `Req.Body`, `Resp.Body`, `ReqBody`, and `RespBody`). Zero plain-text credentials or API tokens persist in process memory.
+- **Default-On In-Memory Redaction (`--redact-memory` enabled by default)**:
+  By default out-of-the-box (`--redact-memory=true`), `lazylocal` scrubs sensitive credentials immediately upon capture from all in-memory buffers (`RawReqHeaders`, `Req.RawHeaders`, `Req.Body`, `Resp.Body`, `ReqBody`, and `RespBody`).
+- **Transient Buffer Zeroing (`clear()`)**:
+  When body capture is active, `captureReader` buffers streamed payload bytes up to 64 KB. Immediately after taking a snapshot and executing redaction, `recordExchange` calls `reqCapture.zero()` and `rc.zero()`, locking the buffer, calling `clear(buf.Bytes())` to zero out all byte slices, and resetting buffer length so unredacted transient bytes do not linger in heap memory.
+- **Zero-Body Mode (`--no-body`)**:
+  For environments processing highly sensitive data or production PII where buffering bodies in memory is prohibited, passing `--no-body` bypasses `captureReader` entirely, capturing zero request or response body bytes into memory (`len(ex.Req.Body) == 0` and `len(ex.Resp.Body) == 0`) while allowing live HTTP traffic to stream through unmodified.
 - **Opt-In Raw Secrets Retention (`--allow-raw-secrets`)**:
   Developers who explicitly need unredacted token re-transmission during instant replay can opt-in using `--allow-raw-secrets` (or `--redact-memory=false`):
   ```sh
   lazylocal --allow-raw-secrets
   ```
-- **Automatic Sensitive Body Field Redaction**:
+- **Automatic Sensitive Body Field & Value Pattern Redaction**:
   Whenever `--redact-memory` is active (default), `redactSensitiveBody` parses and sanitizes request and response bodies:
   * **Protected Keys**: Any JSON key or form-urlencoded field name matching (case-insensitively, ignoring hyphens and underscores): `password`, `passwd`, `pass`, `secret`, `client_secret`, `token`, `access_token`, `refresh_token`, `id_token`, `api_key`, `apikey`, `private_key`, `authorization`, `credit_card`, `card_number`, `cvv`, `ssn`.
   * **Deep JSON Traversal**: Valid JSON structures (objects and nested arrays) are recursively walked, replacing matched sensitive values with `"REDACTED"` while preserving surrounding non-sensitive fields.
+  * **Secret Value Pattern Redaction**: Token value patterns are scrubbed even under custom/unknown key names or in free-text and plain-text responses:
+    - JWT tokens (`eyJ...`)
+    - API key formats (OpenAI `sk-...`, GitHub `ghp_...`/`gho_...`/`github_pat_...`, Slack `xox...`, AWS `AKIA...`, Google `AIza...`)
+    - Bearer and Basic authentication headers in text (`Bearer ...`, `Basic ...`)
+    - PEM private keys (`-----BEGIN ... PRIVATE KEY-----`)
+  * **Fast-Path Screening (`mayContainSecrets`)**: Binary payloads and large files that lack key-value separators (`:`, `=`) and known credential token prefixes are fast-pathed in microseconds without regex overhead.
   * **Regex Fallback for Form-URLencoded & Truncated Payloads**: Form-urlencoded bodies (`application/x-www-form-urlencoded`) and truncated JSON payloads are sanitized via regex fallback, replacing sensitive values with `REDACTED` or `"REDACTED"`.
   * **Stream Preservation**: Proxied live HTTP traffic between client and server is transmitted unmodified; only the ring buffer and TUI/Web inspection copies are scrubbed in RAM.
 
@@ -155,7 +167,25 @@ Untrusted HTTP traffic captured by the proxy (URLs, headers, JSON payloads) coul
 
 ---
 
-## 9. Security Regression Test Suite
+## 9. Known Limitations & Residual Risks
+
+While `lazylocal` implements defense-in-depth security layers, users and operators should be aware of the following engineering boundaries:
+
+1. **Heuristic Redaction Boundaries**:
+   Field-name matching (`password`, `token`, `secret`, `api_key`, etc.) and token-prefix regexes (`eyJ...`, `sk-...`, `ghp_...`, `AKIA...`, `Bearer ...`, PEM keys) cover standard credentials and common industry formats, but cannot mathematically guarantee detection of custom, unformatted, or proprietary secret formats. Users handling production PII, confidential medical data, or unformatted secrets should run `lazylocal --no-body` to disable body capture in memory completely.
+
+2. **Transient Stream Buffering**:
+   When body capture is enabled (up to 64 KB), `captureReader` buffers bytes while reading the stream before `recordExchange` scrubs sensitive fields and zeroes (`clear()`) the temporary buffer. While the memory is zeroed immediately after snapshot and redaction, unredacted bytes exist in the temporary buffer during the transfer window. Using `--no-body` completely bypasses `captureReader` and prevents any body buffering.
+
+3. **Release Checksum Trust Model**:
+   Installers (`install.sh` and `install.ps1`) are strictly fail-closed: if `checksums.txt` cannot be downloaded or hash verification fails, installation aborts immediately. Hashes are fetched over HTTPS from GitHub Releases. For higher security environments independent of GitHub release assets, users can pin the hash directly using `EXPECTED_SHA256=<hash>`, or use `go install github.com/kuarezma/lazylocal/cmd/lazylocal@v0.1.0` to verify against the immutable Google Go Checksum Database (`sum.golang.org`) transparency log.
+
+4. **Verified CI & `govulncheck` Evidence**:
+   Every commit and pull request triggers GitHub Actions CI verifying `go vet ./...`, `go test -v -race ./...` across Ubuntu Linux, macOS, and Windows on both Go 1.23 and 1.24, alongside official `govulncheck ./...` dependency auditing. Live pipeline results can be audited at [https://github.com/kuarezma/lazylocal/actions/workflows/ci.yml](https://github.com/kuarezma/lazylocal/actions/workflows/ci.yml).
+
+---
+
+## 10. Security Regression Test Suite
 
 All security controls are continuously verified in CI via automated Go regression tests:
 
@@ -163,8 +193,9 @@ All security controls are continuously verified in CI via automated Go regressio
 | :--- | :--- | :--- | :--- |
 | **DNS Rebinding Protection (Proxy)** | `TestProxyDNSRebindingProtection` | `internal/proxy/proxy_test.go` | Rejects non-`.localhost` domains with `HTTP 421 Misdirected Request` |
 | **Header Masking & Replay** | `TestProxyHeaderMaskingAndReplay` | `internal/proxy/proxy_test.go` | Verifies UI masking and faithful replay preservation |
-| **Zero-Secret RAM Retention** | `TestProxyRedactMemory` | `internal/proxy/proxy_test.go` | Verifies default in-memory header redaction under `--redact-memory` |
+| **In-Memory Header Redaction** | `TestProxyRedactMemory` | `internal/proxy/proxy_test.go` | Verifies default in-memory header redaction under `--redact-memory` |
 | **Sensitive Body Field Redaction** | `TestProxyBodyRedaction` | `internal/proxy/proxy_test.go` | Verifies recursive JSON and form-urlencoded body redaction for passwords, API keys, and tokens |
+| **Pattern Redaction & Zero-Body Mode** | `TestProxyPatternAndNoBodyRedaction` | `internal/proxy/proxy_test.go` | Verifies secret pattern scrubbing (JWT, sk-, ghp-, Bearer) and --no-body zero capture mode |
 | **Non-Idempotent Replay Confirmation** | `TestServerReplayConfirmationGuard` | `internal/web/server_test.go` | Enforces `409 Conflict` on unconfirmed POST/PUT/DELETE replay in Web API |
 | **TUI Replay Confirmation Flow** | `TestTUIReplayConfirmation` | `internal/tui/tui_test.go` | Verifies interactive confirmation prompts on POST/PUT/DELETE before dispatching replay |
 | **TOCTOU Process Identity Re-Verification** | `TestKillServiceTOCTOUPIDReuseMismatch` | `internal/procs/procs_unix_test.go` | Verifies live PID command check prevents PID reuse race conditions |
@@ -175,5 +206,5 @@ All security controls are continuously verified in CI via automated Go regressio
 
 To run the full security test suite:
 ```sh
-go test -v -race -run "^(TestProxyDNSRebindingProtection|TestProxyHeaderMaskingAndReplay|TestProxyRedactMemory|TestProxyBodyRedaction|TestServerReplayConfirmationGuard|TestTUIReplayConfirmation|TestKillServiceTOCTOUPIDReuseMismatch|TestServerSecurityHeadersAndCSRF|TestServerDNSRebindingProtection|TestTUI_ANSISanitization|TestZombieClassifier)$" ./...
+go test -v -race -run "^(TestProxyDNSRebindingProtection|TestProxyHeaderMaskingAndReplay|TestProxyRedactMemory|TestProxyBodyRedaction|TestProxyPatternAndNoBodyRedaction|TestServerReplayConfirmationGuard|TestTUIReplayConfirmation|TestKillServiceTOCTOUPIDReuseMismatch|TestServerSecurityHeadersAndCSRF|TestServerDNSRebindingProtection|TestTUI_ANSISanitization|TestZombieClassifier)$" ./...
 ```

@@ -35,17 +35,21 @@ try {
 
     Write-Host "🔒 Verifying SHA-256 checksum..." -ForegroundColor Cyan
     try {
-        Invoke-WebRequest -Uri $checksumUrl -OutFile $tempChecksums -UseBasicParsing
-        $lines = Get-Content $tempChecksums
         $expectedHash = ""
-        foreach ($line in $lines) {
-            if ($line -match "([a-fA-F0-9]{64})\s+.*$binary") {
-                $expectedHash = $matches[1].ToLower()
-                break
+        if ($env:EXPECTED_SHA256 -and $env:EXPECTED_SHA256.Trim() -ne "") {
+            $expectedHash = $env:EXPECTED_SHA256.Trim().ToLower()
+        } else {
+            Invoke-WebRequest -Uri $checksumUrl -OutFile $tempChecksums -UseBasicParsing
+            $lines = Get-Content $tempChecksums
+            foreach ($line in $lines) {
+                if ($line -match "([a-fA-F0-9]{64})\s+.*$binary") {
+                    $expectedHash = $matches[1].ToLower()
+                    break
+                }
             }
-        }
-        if (-not $expectedHash) {
-            throw "Could not find checksum for $binary in checksums.txt"
+            if (-not $expectedHash) {
+                throw "Could not find checksum for $binary in checksums.txt"
+            }
         }
         $actualHash = (Get-FileHash -Path $tempFile -Algorithm SHA256).Hash.ToLower()
         if ($expectedHash -ne $actualHash) {

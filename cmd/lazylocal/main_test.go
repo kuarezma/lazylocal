@@ -323,3 +323,27 @@ func TestCLISweepDefaultPreviewMode(t *testing.T) {
 		t.Fatalf("unexpected output: %s", output)
 	}
 }
+
+func TestPrintUsageAndNoBodyFlag(t *testing.T) {
+	output, _ := captureStdout(t, func() error {
+		printUsage()
+		return nil
+	})
+	if !strings.Contains(output, "--no-body") {
+		t.Fatalf("printUsage missing --no-body documentation: %s", output)
+	}
+
+	eng, err := NewEngine(0, "pins.toml", 0)
+	if err != nil {
+		t.Fatalf("failed to create engine: %v", err)
+	}
+	defer eng.Close()
+
+	if !eng.Proxy().CaptureBodies() {
+		t.Fatalf("expected CaptureBodies to default to true")
+	}
+	eng.Proxy().SetCaptureBodies(false)
+	if eng.Proxy().CaptureBodies() {
+		t.Fatalf("expected CaptureBodies to be false after SetCaptureBodies(false)")
+	}
+}

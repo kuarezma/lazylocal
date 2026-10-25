@@ -504,6 +504,7 @@ func main() {
 	headlessFlag := fs.Bool("headless", false, "Run in background headless mode (no TUI)")
 	redactMemory := fs.Bool("redact-memory", true, "Scrub sensitive headers and bodies from in-memory replay buffers (default: true)")
 	allowRawSecrets := fs.Bool("allow-raw-secrets", false, "Allow storing unredacted secrets in memory (disables redact-memory)")
+	noBody := fs.Bool("no-body", false, "Disable capturing HTTP request and response bodies in memory")
 	versionFlag := fs.Bool("version", false, "Print version and exit")
 
 	if err := fs.Parse(os.Args[1:]); err != nil {
@@ -519,6 +520,10 @@ func main() {
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to initialize lazylocal: %v\n", err)
 		os.Exit(1)
+	}
+
+	if *noBody {
+		eng.Proxy().SetCaptureBodies(false)
 	}
 
 	if *allowRawSecrets || !*redactMemory {
@@ -769,6 +774,7 @@ FLAGS:
   --pins <path>        Path to pins.toml configuration (default: pins.toml or builtin)
   --interval <dur>     Discovery scanner periodic interval (default: 2s)
   --headless           Run in background headless mode without TUI
+  --no-body            Disable capturing HTTP request and response bodies in memory
   --redact-memory      Scrub sensitive headers and bodies from in-memory replay buffers (default: true)
   --allow-raw-secrets  Allow storing unredacted secrets in memory for faithful replay (disables redact-memory)
   --version, -v        Print version and exit`)

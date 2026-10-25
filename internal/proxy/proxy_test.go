@@ -573,6 +573,173 @@ func TestProxyBodyRedaction(t *testing.T) {
 	}
 }
 
+func TestProxyPatternAndNoBodyRedaction(t *testing.T) {
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		switch r.URL.Path {
+		case "/api/custom-json":
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write(body)
+		case "/plain-text":
+			w.Header().Set("Content-Type", "text/plain")
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte("Authorization: Bearer secret-token-12345678 and token: ghp_1234567890abcdefghij1234567890"))
+		case "/nobody":
+			w.Header().Set("Content-Type", "text/plain")
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte("full response body intact"))
+		default:
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write(body)
+		}
+	}))
+	defer backend.Close()
+
+	u, _ := url.Parse(backend.URL)
+	port, _ := strconv.Atoi(u.Port())
+
+	ring := capture.NewRingBuffer(10)
+	bus := model.NewBus()
+	p := NewProxy(ring, bus)
+	p.UpdateServices([]model.Service{
+		{ID: "pattern-svc", Name: "pattern", Port: port, Running: true},
+	})
+
+	proxyServer := httptest.NewServer(p)
+	defer proxyServer.Close()
+	client := proxyServer.Client()
+
+	// 1. Custom JSON key with OpenAI/GitHub/JWT token -> scrubbed to REDACTED
+	jsonPayload := `{"custom_field": "sk-proj-1234567890abcdefghij", "jwt_blob": "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.sig1234567890"}`
+	req1, _ := http.NewRequest("POST", proxyServer.URL+"/api/custom-json", strings.NewReader(jsonPayload))
+	req1.Host = "pattern.localhost"
+	req1.Header.Set("Content-Type", "application/json")
+
+	resp1, err := client.Do(req1)
+	if err != nil {
+		t.Fatalf("custom json request failed: %v", err)
+	}
+	respBody1, _ := io.ReadAll(resp1.Body)
+	_ = resp1.Body.Close()
+
+	if !strings.Contains(string(respBody1), "sk-proj-1234567890abcdefghij") {
+		t.Fatalf("client did not receive intact response body: %s", string(respBody1))
+	}
+
+	exchanges := ring.List("pattern-svc", false)
+	if len(exchanges) != 1 {
+		t.Fatalf("expected 1 exchange recorded, got %d", len(exchanges))
+	}
+	ex1 := exchanges[0]
+
+	for name, b := range map[string][]byte{
+		"ex.Req.Body":  ex1.Req.Body,
+		"ex.Resp.Body": ex1.Resp.Body,
+		"ex.ReqBody":   ex1.ReqBody,
+		"ex.RespBody":  ex1.RespBody,
+	} {
+		s := string(b)
+		if strings.Contains(s, "sk-proj-1234567890abcdefghij") {
+			t.Fatalf("%s leaked raw sk- token: %s", name, s)
+		}
+		if strings.Contains(s, "eyJhbGciOiJIUzI1NiJ9") {
+			t.Fatalf("%s leaked raw JWT token: %s", name, s)
+		}
+		if !strings.Contains(s, "REDACTED") {
+			t.Fatalf("%s missing REDACTED: %s", name, s)
+		}
+	}
+
+	// 2. Plain-text response containing Bearer secret-token-12345678 and ghp_1234567890abcdefghij1234567890 -> scrubbed to REDACTED
+	req2, _ := http.NewRequest("GET", proxyServer.URL+"/plain-text", nil)
+	req2.Host = "pattern.localhost"
+
+	resp2, err := client.Do(req2)
+	if err != nil {
+		t.Fatalf("plain-text request failed: %v", err)
+	}
+	respBody2, _ := io.ReadAll(resp2.Body)
+	_ = resp2.Body.Close()
+
+	if !strings.Contains(string(respBody2), "Bearer secret-token-12345678") {
+		t.Fatalf("client did not receive intact plain text: %s", string(respBody2))
+	}
+
+	exchanges = ring.List("pattern-svc", false)
+	if len(exchanges) != 2 {
+		t.Fatalf("expected 2 exchanges recorded, got %d", len(exchanges))
+	}
+	ex2 := exchanges[0]
+
+	for name, b := range map[string][]byte{
+		"ex.Resp.Body": ex2.Resp.Body,
+		"ex.RespBody":  ex2.RespBody,
+	} {
+		s := string(b)
+		if strings.Contains(s, "secret-token-12345678") {
+			t.Fatalf("%s leaked Bearer token: %s", name, s)
+		}
+		if strings.Contains(s, "ghp_1234567890abcdefghij1234567890") {
+			t.Fatalf("%s leaked ghp_ token: %s", name, s)
+		}
+		if !strings.Contains(s, "REDACTED") {
+			t.Fatalf("%s missing REDACTED: %s", name, s)
+		}
+	}
+
+	// 3. p.SetCaptureBodies(false) (--no-body mode) -> len(ex.Req.Body) == 0 and len(ex.Resp.Body) == 0 while client receives full response body intact
+	p.SetCaptureBodies(false)
+	if p.CaptureBodies() {
+		t.Fatalf("expected CaptureBodies() to be false")
+	}
+
+	req3, _ := http.NewRequest("POST", proxyServer.URL+"/nobody", strings.NewReader("client-request-payload"))
+	req3.Host = "pattern.localhost"
+
+	resp3, err := client.Do(req3)
+	if err != nil {
+		t.Fatalf("nobody request failed: %v", err)
+	}
+	respBody3, _ := io.ReadAll(resp3.Body)
+	_ = resp3.Body.Close()
+
+	if string(respBody3) != "full response body intact" {
+		t.Fatalf("expected intact client response 'full response body intact', got %q", string(respBody3))
+	}
+
+	exchanges = ring.List("pattern-svc", false)
+	if len(exchanges) != 3 {
+		t.Fatalf("expected 3 exchanges recorded, got %d", len(exchanges))
+	}
+	ex3 := exchanges[0]
+
+	if len(ex3.Req.Body) != 0 {
+		t.Fatalf("expected empty ex.Req.Body in --no-body mode, got %d bytes: %s", len(ex3.Req.Body), string(ex3.Req.Body))
+	}
+	if len(ex3.Resp.Body) != 0 {
+		t.Fatalf("expected empty ex.Resp.Body in --no-body mode, got %d bytes: %s", len(ex3.Resp.Body), string(ex3.Resp.Body))
+	}
+	if len(ex3.ReqBody) != 0 {
+		t.Fatalf("expected empty ex.ReqBody in --no-body mode, got %d bytes", len(ex3.ReqBody))
+	}
+	if len(ex3.RespBody) != 0 {
+		t.Fatalf("expected empty ex.RespBody in --no-body mode, got %d bytes", len(ex3.RespBody))
+	}
+
+	// Verify Replay in --no-body mode
+	replayedEx, err := p.Replay(context.Background(), ex3.ID)
+	if err != nil {
+		t.Fatalf("replay in --no-body mode failed: %v", err)
+	}
+	if len(replayedEx.Req.Body) != 0 {
+		t.Fatalf("expected empty replayedEx.Req.Body in --no-body mode, got %d bytes", len(replayedEx.Req.Body))
+	}
+	if len(replayedEx.Resp.Body) != 0 {
+		t.Fatalf("expected empty replayedEx.Resp.Body in --no-body mode, got %d bytes", len(replayedEx.Resp.Body))
+	}
+}
+
 func TestSSELowLatencyStreaming(t *testing.T) {
 	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/event-stream")

@@ -17,7 +17,7 @@
 
 Zero-config `.localhost` subdomains • In-flight HTTP tap & instant replay • Autonomous zombie process hunter • Built for human developers and multi-agent AI coding loops.
 
-[![CI Status](https://github.com/kuarezma/lazylocal/workflows/CI/badge.svg)](https://github.com/kuarezma/lazylocal/actions)
+[![CI](https://github.com/kuarezma/lazylocal/actions/workflows/ci.yml/badge.svg)](https://github.com/kuarezma/lazylocal/actions/workflows/ci.yml)
 [![Go Report Card](https://goreportcard.com/badge/github.com/kuarezma/lazylocal)](https://goreportcard.com/report/github.com/kuarezma/lazylocal)
 [![Go Version](https://img.shields.io/badge/go-%3E%3D1.22-blue.svg)](https://golang.org)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
@@ -210,6 +210,7 @@ lazylocal version
 - `--pins <path>`: Path to custom pinned services configuration (default: `pins.toml`).
 - `--interval <dur>`: Background scanner polling interval (default: `2s`).
 - `--headless`: Run in background headless mode without launching the TUI.
+- `--no-body`: Disable capturing HTTP request and response bodies in memory.
 - `--redact-memory`: Scrub sensitive headers and bodies from in-memory replay buffers (default: `true`).
 - `--allow-raw-secrets`: Allow storing unredacted secrets in memory for faithful replay (disables redact-memory).
 - `--version`: Print version information and exit.
@@ -236,8 +237,8 @@ For complete threat models, architecture diagrams, and the automated regression 
    The reverse proxy strictly validates incoming `Host` headers. Any request targeting external domains (e.g., `evil.com`) is immediately rejected with `421 Misdirected Request`.
 3. **Subdomain-Isolated Constant-Time CSRF Tokens & Origin Allowlist**:
    Destructive API endpoints (`/api/kill`, `/api/replay`, `/api/sweep-zombies`) enforce constant-time CSRF token comparison (`crypto/subtle`) and validate that incoming `Origin` headers strictly match loopback or `*.localhost`.
-4. **Sensitive Header & Body Redaction (`--redact-memory` Default-On)**:
-   Sensitive headers (`Authorization`, `Cookie`, `X-Api-Key`, etc.) and sensitive body fields (`password`, `token`, `secret`, `api_key`, `cvv`, etc. in JSON and form-urlencoded payloads) are scrubbed to `"REDACTED"` in memory by default. Opt-out for faithful raw secrets replay is available via `--allow-raw-secrets`.
+4. **In-Memory Header & Body Redaction (`--redact-memory`, default) and Zero-Body Mode (`--no-body`)**:
+   Sensitive headers (`Authorization`, `Cookie`, `X-Api-Key`, etc.) and sensitive body fields (`password`, `token`, `secret`, `api_key`, `cvv`, etc. in JSON and form-urlencoded payloads, as well as secret token patterns like JWTs, OpenAI `sk-...`, GitHub `ghp_...`, and Bearer tokens) are scrubbed to `"REDACTED"` in memory by default. Transient buffers are zeroed (`clear()`) after snapshot. Users handling production PII or unstructured secrets can disable body capture entirely via `--no-body`. Opt-out for faithful raw secrets replay is available via `--allow-raw-secrets`.
 5. **Non-Idempotent Replay Confirmation Guard**:
    Stateful methods (`POST`, `PUT`, `PATCH`, `DELETE`) require explicit user confirmation via Web UI dialog, TUI interactive prompt, or `?confirm=true` / `X-Confirm-Replay: true` header (`HTTP 409 Conflict` guard).
 6. **Safe Sweep Preview Mode & TOCTOU Protection**:

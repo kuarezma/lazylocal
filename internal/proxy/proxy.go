@@ -57,6 +57,17 @@ func (c *captureReader) snapshot() ([]byte, int64, bool) {
 	return bytes.Clone(c.buf.Bytes()), c.total, c.truncated
 }
 
+// zero locks the buffer and zeroes out unredacted captured bytes from heap memory.
+func (c *captureReader) zero() {
+	if c == nil {
+		return
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	clear(c.buf.Bytes())
+	c.buf.Reset()
+}
+
 func newCaptureReader(rc io.ReadCloser, max int) *captureReader {
 	return &captureReader{
 		rc:  rc,
@@ -109,13 +120,14 @@ func (c *captureReader) Close() error {
 
 // Proxy is a dynamic .localhost HTTP reverse proxy with tap & replay capabilities.
 type Proxy struct {
-	ring         *capture.RingBuffer
-	bus          *model.Bus
-	mu           sync.RWMutex
-	services     []model.Service
-	client       *http.Client
-	transport    *http.Transport
-	redactMemory bool
+	ring          *capture.RingBuffer
+	bus           *model.Bus
+	mu            sync.RWMutex
+	services      []model.Service
+	client        *http.Client
+	transport     *http.Transport
+	redactMemory  bool
+	captureBodies bool
 }
 
 // NewProxy creates a new reverse proxy instance.
@@ -136,10 +148,11 @@ func NewProxy(ring *capture.RingBuffer, bus *model.Bus) *Proxy {
 	}
 
 	return &Proxy{
-		ring:         ring,
-		bus:          bus,
-		transport:    tr,
-		redactMemory: true,
+		ring:          ring,
+		bus:           bus,
+		transport:     tr,
+		redactMemory:  true,
+		captureBodies: true,
 		client: &http.Client{
 			Transport: tr,
 			Timeout:   30 * time.Second,
@@ -156,7 +169,7 @@ func (p *Proxy) UpdateServices(services []model.Service) {
 	copy(p.services, services)
 }
 
-// SetRedactMemory enables or disables zero-secret RAM retention by scrubbing
+// SetRedactMemory enables or disables in-memory header and body redaction by scrubbing
 // sensitive headers (Authorization, Cookie, X-Api-Key) from in-memory replay buffers.
 func (p *Proxy) SetRedactMemory(v bool) {
 	p.mu.Lock()
@@ -169,6 +182,20 @@ func (p *Proxy) RedactMemory() bool {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 	return p.redactMemory
+}
+
+// SetCaptureBodies enables or disables capturing HTTP request and response bodies.
+func (p *Proxy) SetCaptureBodies(v bool) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.captureBodies = v
+}
+
+// CaptureBodies returns whether HTTP body capture is enabled.
+func (p *Proxy) CaptureBodies() bool {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	return p.captureBodies
 }
 
 // findService looks up a service matching host or subdomain.
@@ -257,7 +284,7 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	origRawHeaders := r.Header.Clone()
 	maskedReqHeaders := capture.MaskHeaders(r.Header)
 
-	if r.Body != nil {
+	if p.CaptureBodies() && r.Body != nil {
 		reqCapture = newCaptureReader(r.Body, capture.MaxBodyBytes)
 		r.Body = reqCapture
 	}
@@ -312,6 +339,13 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			if p.RedactMemory() {
 				reqBody = redactSensitiveBody(reqBody, r.Header.Get("Content-Type"))
 				respBody = redactSensitiveBody(respBody, finalContentType)
+			}
+
+			if reqCapture != nil {
+				reqCapture.zero()
+			}
+			if rc != nil {
+				rc.zero()
 			}
 
 			ex := model.Exchange{
@@ -398,10 +432,12 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				muStatus.Unlock()
 				return nil
 			}
-			rc := newCaptureReader(resp.Body, capture.MaxBodyBytes)
-			rc.onFinish = recordExchange
-			respCapture = rc
-			resp.Body = rc
+			if p.CaptureBodies() {
+				rc := newCaptureReader(resp.Body, capture.MaxBodyBytes)
+				rc.onFinish = recordExchange
+				respCapture = rc
+				resp.Body = rc
+			}
 			muStatus.Unlock()
 			return nil
 		},
@@ -506,6 +542,11 @@ func (p *Proxy) Replay(ctx context.Context, exchangeID string) (*model.Exchange,
 		newEx.ReqBody = newEx.Req.Body
 	}
 
+	if !p.CaptureBodies() {
+		newEx.Req.Body = nil
+		newEx.ReqBody = nil
+	}
+
 	if err != nil {
 		newEx.Error = err.Error()
 		newEx.Resp.StatusCode = http.StatusBadGateway
@@ -521,6 +562,31 @@ func (p *Proxy) Replay(ctx context.Context, exchangeID string) (*model.Exchange,
 		return newEx, err
 	}
 	defer resp.Body.Close()
+
+	if !p.CaptureBodies() {
+		extraBytes, _ := io.Copy(io.Discard, resp.Body)
+		newEx.Resp = model.HTTPResponseData{
+			StatusCode:  resp.StatusCode,
+			Status:      resp.Status,
+			Headers:     resp.Header.Clone(),
+			Body:        nil,
+			BodySize:    extraBytes,
+			Truncated:   false,
+			ContentType: resp.Header.Get("Content-Type"),
+		}
+		newEx.RespBody = nil
+		newEx.Truncated = newEx.Req.Truncated
+
+		p.ring.Record(*newEx)
+		if p.bus != nil {
+			p.bus.Publish(model.Event{
+				Type:      model.EventExchangeRecorded,
+				Exchange:  newEx,
+				ServiceID: newEx.ServiceID,
+			})
+		}
+		return newEx, nil
+	}
 
 	// Read response body up to MaxBodyBytes
 	var bodyBuf bytes.Buffer
@@ -734,20 +800,72 @@ func redactJSONValue(v any) any {
 			res[i] = redactJSONValue(subV)
 		}
 		return res
+	case string:
+		return redactSecretPatterns(val)
 	default:
 		return v
 	}
 }
 
+var (
+	jwtRegex         = regexp.MustCompile(`eyJ[A-Za-z0-9_-]{10,}\.eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}`)
+	apiKeyRegex      = regexp.MustCompile(`\b(?:sk-[A-Za-z0-9_-]{16,}|gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|xox[baprs]-[A-Za-z0-9-]{10,}|AKIA[0-9A-Z]{16}|AIza[0-9A-Za-z_-]{35})\b`)
+	bearerBasicRegex = regexp.MustCompile(`(?i)\b(?:Bearer|Basic)\s+[A-Za-z0-9._\-+/=]{8,}`)
+	pemKeyRegex      = regexp.MustCompile(`-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----[\s\S]*?-----END [A-Z0-9 ]*PRIVATE KEY-----`)
+)
+
+func redactSecretPatterns(s string) string {
+	s = jwtRegex.ReplaceAllString(s, "REDACTED")
+	s = apiKeyRegex.ReplaceAllString(s, "REDACTED")
+	s = bearerBasicRegex.ReplaceAllString(s, "REDACTED")
+	s = pemKeyRegex.ReplaceAllString(s, "REDACTED")
+	return s
+}
+
+func redactSecretPatternsBytes(b []byte) []byte {
+	b = jwtRegex.ReplaceAll(b, []byte("REDACTED"))
+	b = apiKeyRegex.ReplaceAll(b, []byte("REDACTED"))
+	b = bearerBasicRegex.ReplaceAll(b, []byte("REDACTED"))
+	b = pemKeyRegex.ReplaceAll(b, []byte("REDACTED"))
+	return b
+}
+
 var sensitiveBodyRegex = regexp.MustCompile(`(?i)("?(?:password|passwd|pass|secret|client_secret|clientsecret|token|access_token|accesstoken|refresh_token|refreshtoken|id_token|idtoken|api_key|apikey|private_key|privatekey|authorization|credit_card|creditcard|card_number|cardnumber|cvv|ssn)"?\s*([:=])\s*)("[^"]*"|'[^']*'|[^&\s,}]+)`)
 
-// redactSensitiveBody scrubs sensitive fields from JSON and form-urlencoded payloads in-memory.
-func redactSensitiveBody(body []byte, contentType string) []byte {
+var secretMarkers = [][]byte{
+	[]byte("eyJ"),
+	[]byte("sk-"),
+	[]byte("ghp_"),
+	[]byte("gho_"),
+	[]byte("github_pat_"),
+	[]byte("xox"),
+	[]byte("AKIA"),
+	[]byte("AIza"),
+	[]byte("Bearer"),
+	[]byte("bearer"),
+	[]byte("Basic"),
+	[]byte("basic"),
+	[]byte("PRIVATE KEY"),
+}
+
+func mayContainSecrets(body []byte) bool {
 	if len(body) == 0 {
-		return body
+		return false
 	}
-	// Fast path: every key-value secret in JSON or form data requires ':' or '='.
-	if bytes.IndexByte(body, ':') == -1 && bytes.IndexByte(body, '=') == -1 {
+	if bytes.IndexByte(body, ':') != -1 || bytes.IndexByte(body, '=') != -1 {
+		return true
+	}
+	for _, marker := range secretMarkers {
+		if bytes.Contains(body, marker) {
+			return true
+		}
+	}
+	return false
+}
+
+// redactSensitiveBody scrubs sensitive fields from JSON, form-urlencoded, and plain text payloads in-memory.
+func redactSensitiveBody(body []byte, contentType string) []byte {
+	if !mayContainSecrets(body) {
 		return body
 	}
 
@@ -764,7 +882,11 @@ func redactSensitiveBody(body []byte, contentType string) []byte {
 		}
 	}
 
-	res := sensitiveBodyRegex.ReplaceAllFunc(body, func(m []byte) []byte {
+	// 1. Scrub token/credential patterns first (JWT, Bearer/Basic, API keys, PEM keys)
+	res := redactSecretPatternsBytes(body)
+
+	// 2. Scrub sensitive key-value pairs (form-urlencoded, truncated JSON, headers in text)
+	res = sensitiveBodyRegex.ReplaceAllFunc(res, func(m []byte) []byte {
 		sub := sensitiveBodyRegex.FindSubmatch(m)
 		if len(sub) < 4 {
 			return m
@@ -776,5 +898,6 @@ func redactSensitiveBody(body []byte, contentType string) []byte {
 		}
 		return append(prefix, []byte("REDACTED")...)
 	})
+
 	return res
 }
