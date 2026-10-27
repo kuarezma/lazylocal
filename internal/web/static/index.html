@@ -7,28 +7,32 @@
   <script>window.__LAZYLOCAL_TOKEN__ = "{{CSRF_TOKEN}}";</script>
   <style>
     :root {
-      --bg-base: #0B0F19;
-      --bg-surface: #111827;
-      --bg-surface-hover: #1F2937;
-      --bg-surface-active: #283548;
-      --border-color: #1E293B;
-      --border-color-light: #334155;
-      --primary: #3730A3;
-      --primary-light: #4F46E5;
-      --primary-glow: rgba(79, 70, 229, 0.2);
+      --bg-base: #080C14;
+      --bg-surface: rgba(15, 23, 42, 0.75);
+      --bg-surface-elevated: rgba(30, 41, 59, 0.7);
+      --bg-surface-hover: rgba(51, 65, 85, 0.5);
+      --border-color: rgba(255, 255, 255, 0.08);
+      --border-color-light: rgba(255, 255, 255, 0.16);
+      --border-glow: rgba(99, 102, 241, 0.3);
+      --primary: #4F46E5;
+      --primary-gradient: linear-gradient(135deg, #6366F1 0%, #4338CA 100%);
+      --primary-glow: rgba(99, 102, 241, 0.35);
       --success: #10B981;
-      --success-glow: rgba(16, 185, 129, 0.2);
+      --success-gradient: linear-gradient(135deg, #10B981 0%, #059669 100%);
+      --success-glow: rgba(16, 185, 129, 0.3);
       --danger: #EF4444;
-      --danger-glow: rgba(239, 68, 68, 0.2);
+      --danger-gradient: linear-gradient(135deg, #EF4444 0%, #DC2626 100%);
+      --danger-glow: rgba(239, 68, 68, 0.3);
       --warning: #F59E0B;
       --info: #06B6D4;
       --text-main: #F8FAFC;
       --text-muted: #94A3B8;
       --text-dim: #64748B;
-      --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-      --radius-sm: 6px;
-      --radius-md: 10px;
-      --radius-lg: 14px;
+      --font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Segoe UI", Roboto, sans-serif;
+      --font-mono: ui-monospace, SFMono-Regular, "JetBrains Mono", Menlo, Consolas, monospace;
+      --radius-pill: 9999px;
+      --radius-card: 18px;
+      --radius-sm: 8px;
     }
 
     * {
@@ -39,6 +43,10 @@
 
     body {
       background-color: var(--bg-base);
+      background-image: 
+        radial-gradient(circle at 15% 10%, rgba(99, 102, 241, 0.12) 0%, transparent 40%),
+        radial-gradient(circle at 85% 85%, rgba(6, 182, 212, 0.08) 0%, transparent 45%);
+      background-attachment: fixed;
       color: var(--text-main);
       font-family: var(--font-family);
       line-height: 1.5;
@@ -46,37 +54,41 @@
       display: flex;
       flex-direction: column;
       overflow-x: hidden;
+      -webkit-font-smoothing: antialiased;
     }
 
     /* Top Navigation Header */
     header {
-      background-color: rgba(17, 24, 39, 0.85);
-      backdrop-filter: blur(12px);
+      background-color: rgba(11, 15, 25, 0.82);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
       border-bottom: 1px solid var(--border-color);
-      padding: 0.85rem 1.75rem;
+      padding: 0.85rem 2rem;
       position: sticky;
       top: 0;
       z-index: 50;
       display: flex;
       align-items: center;
       justify-content: space-between;
+      box-shadow: 0 4px 24px rgba(0, 0, 0, 0.35);
     }
 
     .brand-section {
       display: flex;
       align-items: center;
-      gap: 0.75rem;
+      gap: 0.9rem;
     }
 
     .brand-logo {
-      width: 32px;
-      height: 32px;
-      background: linear-gradient(135deg, var(--primary-light), var(--primary));
-      border-radius: var(--radius-sm);
+      width: 36px;
+      height: 36px;
+      background: var(--primary-gradient);
+      border-radius: var(--radius-pill);
       display: flex;
       align-items: center;
       justify-content: center;
-      box-shadow: 0 0 16px var(--primary-glow);
+      box-shadow: 0 0 20px var(--primary-glow);
+      border: 1px solid rgba(255, 255, 255, 0.2);
     }
 
     .brand-logo svg {
@@ -86,41 +98,44 @@
     }
 
     .brand-title {
-      font-size: 1.15rem;
+      font-size: 1.2rem;
       font-weight: 700;
-      letter-spacing: -0.02em;
+      letter-spacing: -0.025em;
       display: flex;
       align-items: center;
-      gap: 0.5rem;
+      gap: 0.65rem;
     }
 
     .brand-badge {
-      background-color: var(--border-color);
+      background: rgba(255, 255, 255, 0.06);
       color: var(--text-muted);
-      font-size: 0.75rem;
+      font-size: 0.725rem;
       font-weight: 600;
-      padding: 0.15rem 0.5rem;
-      border-radius: 9999px;
-      border: 1px solid var(--border-color-light);
-      font-family: monospace;
+      padding: 0.25rem 0.75rem;
+      border-radius: var(--radius-pill);
+      border: 1px solid var(--border-color);
+      font-family: var(--font-mono);
+      letter-spacing: 0.02em;
     }
 
     .header-controls {
       display: flex;
       align-items: center;
-      gap: 1rem;
+      gap: 0.75rem;
     }
 
     .sse-indicator {
       display: flex;
       align-items: center;
-      gap: 0.5rem;
-      font-size: 0.8rem;
+      gap: 0.55rem;
+      font-size: 0.775rem;
+      font-weight: 500;
       color: var(--text-muted);
-      background-color: var(--bg-surface);
+      background: rgba(255, 255, 255, 0.04);
       border: 1px solid var(--border-color);
-      padding: 0.35rem 0.75rem;
-      border-radius: 9999px;
+      padding: 0.35rem 0.85rem;
+      border-radius: var(--radius-pill);
+      backdrop-filter: blur(10px);
     }
 
     .sse-dot {
@@ -128,29 +143,29 @@
       height: 8px;
       border-radius: 50%;
       background-color: var(--success);
-      box-shadow: 0 0 8px var(--success-glow);
+      box-shadow: 0 0 10px var(--success);
       animation: pulse-dot 2s infinite ease-in-out;
     }
 
     .sse-dot.disconnected {
       background-color: var(--danger);
-      box-shadow: 0 0 8px var(--danger-glow);
+      box-shadow: 0 0 10px var(--danger);
       animation: none;
     }
 
     @keyframes pulse-dot {
       0%, 100% { opacity: 1; transform: scale(1); }
-      50% { opacity: 0.4; transform: scale(0.85); }
+      50% { opacity: 0.45; transform: scale(0.8); }
     }
 
     .token-pill {
-      font-family: monospace;
-      font-size: 0.75rem;
+      font-family: var(--font-mono);
+      font-size: 0.725rem;
       color: var(--text-dim);
-      background-color: rgba(30, 41, 59, 0.5);
+      background: rgba(255, 255, 255, 0.03);
       border: 1px solid var(--border-color);
-      padding: 0.35rem 0.65rem;
-      border-radius: var(--radius-sm);
+      padding: 0.35rem 0.85rem;
+      border-radius: var(--radius-pill);
       display: flex;
       align-items: center;
       gap: 0.4rem;
@@ -159,13 +174,13 @@
     /* Main Container */
     main {
       flex: 1;
-      padding: 1.5rem 1.75rem;
+      padding: 1.75rem 2rem 2.5rem;
       max-width: 1720px;
       margin: 0 auto;
       width: 100%;
       display: flex;
       flex-direction: column;
-      gap: 1.5rem;
+      gap: 1.75rem;
     }
 
     /* Metric Cards Grid */
@@ -176,49 +191,54 @@
     }
 
     .metric-card {
-      background-color: var(--bg-surface);
+      background: var(--bg-surface);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
       border: 1px solid var(--border-color);
-      border-radius: var(--radius-md);
-      padding: 1.25rem;
+      border-radius: var(--radius-card);
+      padding: 1.35rem 1.5rem;
       display: flex;
       flex-direction: column;
       justify-content: space-between;
-      transition: border-color 0.2s, transform 0.2s;
+      transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
       position: relative;
       overflow: hidden;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.25);
     }
 
     .metric-card:hover {
       border-color: var(--border-color-light);
-      transform: translateY(-1px);
+      transform: translateY(-2px);
+      box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
     }
 
     .metric-header {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      margin-bottom: 0.5rem;
+      margin-bottom: 0.75rem;
     }
 
     .metric-title {
-      font-size: 0.825rem;
+      font-size: 0.8rem;
       font-weight: 600;
       color: var(--text-muted);
       text-transform: uppercase;
-      letter-spacing: 0.04em;
+      letter-spacing: 0.06em;
     }
 
-    .metric-icon {
-      width: 28px;
-      height: 28px;
-      border-radius: var(--radius-sm);
+    .metric-icon-pill {
+      width: 34px;
+      height: 34px;
+      border-radius: var(--radius-pill);
       display: flex;
       align-items: center;
       justify-content: center;
-      background-color: var(--border-color);
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--border-color);
     }
 
-    .metric-icon svg {
+    .metric-icon-pill svg {
       width: 16px;
       height: 16px;
     }
@@ -227,79 +247,255 @@
       display: flex;
       align-items: baseline;
       justify-content: space-between;
-      margin-top: 0.5rem;
     }
 
     .metric-value {
-      font-size: 1.85rem;
+      font-size: 2.15rem;
       font-weight: 800;
-      letter-spacing: -0.03em;
+      letter-spacing: -0.04em;
       color: var(--text-main);
+      font-feature-settings: "tnum";
+    }
+
+    /* Kapsül Butonlar (Capsule / Pill Buttons) */
+    .btn {
+      font-family: var(--font-family);
+      font-size: 0.775rem;
+      font-weight: 600;
+      padding: 0.45rem 1rem;
+      border-radius: var(--radius-pill);
+      cursor: pointer;
+      border: 1px solid transparent;
+      transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.45rem;
+      text-decoration: none;
+      user-select: none;
+      white-space: nowrap;
+    }
+
+    .btn-sm {
+      padding: 0.325rem 0.85rem;
+      font-size: 0.725rem;
+    }
+
+    .btn-primary {
+      background: var(--primary-gradient);
+      color: #FFF;
+      border-color: rgba(255, 255, 255, 0.15);
+      box-shadow: 0 4px 14px var(--primary-glow);
+    }
+
+    .btn-primary:hover {
+      box-shadow: 0 6px 20px rgba(99, 102, 241, 0.5);
+      transform: translateY(-1px);
+    }
+
+    .btn-outline {
+      background: rgba(255, 255, 255, 0.04);
+      border-color: var(--border-color-light);
+      color: var(--text-main);
+      backdrop-filter: blur(8px);
+    }
+
+    .btn-outline:hover {
+      background: rgba(255, 255, 255, 0.1);
+      border-color: rgba(255, 255, 255, 0.3);
+      transform: translateY(-1px);
+    }
+
+    .btn-danger-pill {
+      background: rgba(239, 68, 68, 0.12);
+      border-color: rgba(239, 68, 68, 0.35);
+      color: #FCA5A5;
+    }
+
+    .btn-danger-pill:hover {
+      background: var(--danger-gradient);
+      border-color: transparent;
+      color: #FFF;
+      box-shadow: 0 4px 16px var(--danger-glow);
+      transform: translateY(-1px);
+    }
+
+    .btn-success-pill {
+      background: rgba(16, 185, 129, 0.12);
+      border-color: rgba(16, 185, 129, 0.35);
+      color: #6EE7B7;
+    }
+
+    .btn-success-pill:hover {
+      background: var(--success-gradient);
+      border-color: transparent;
+      color: #FFF;
+      box-shadow: 0 4px 16px var(--success-glow);
+      transform: translateY(-1px);
     }
 
     .btn-sweep {
-      background-color: rgba(239, 68, 68, 0.15);
-      border: 1px solid var(--danger);
-      color: var(--danger);
-      font-size: 0.75rem;
+      background: rgba(239, 68, 68, 0.12);
+      border: 1px solid rgba(239, 68, 68, 0.35);
+      color: #FCA5A5;
+      font-size: 0.725rem;
       font-weight: 600;
-      padding: 0.35rem 0.75rem;
-      border-radius: var(--radius-sm);
+      padding: 0.4rem 0.9rem;
+      border-radius: var(--radius-pill);
       cursor: pointer;
-      display: flex;
+      display: inline-flex;
       align-items: center;
-      gap: 0.35rem;
-      transition: background-color 0.2s, color 0.2s, box-shadow 0.2s;
+      gap: 0.4rem;
+      transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
     }
 
     .btn-sweep:hover {
-      background-color: var(--danger);
+      background: var(--danger-gradient);
       color: #FFF;
-      box-shadow: 0 0 12px var(--danger-glow);
+      border-color: transparent;
+      box-shadow: 0 4px 18px var(--danger-glow);
+      transform: translateY(-1px);
     }
 
-    /* Content Layout (Services & HTTP Tap) */
+    /* Content Layout */
     .dashboard-layout {
       display: grid;
-      grid-template-columns: 420px 1fr;
+      grid-template-columns: 460px 1fr;
       gap: 1.5rem;
       align-items: start;
     }
 
-    @media (max-width: 1200px) {
+    @media (max-width: 1240px) {
       .dashboard-layout {
         grid-template-columns: 1fr;
       }
     }
 
+    /* Glassmorphism Panels */
     .panel {
-      background-color: var(--bg-surface);
+      background: var(--bg-surface);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
       border: 1px solid var(--border-color);
-      border-radius: var(--radius-md);
+      border-radius: var(--radius-card);
       display: flex;
       flex-direction: column;
       overflow: hidden;
+      box-shadow: 0 10px 36px rgba(0, 0, 0, 0.28);
     }
 
     .panel-header {
-      padding: 1rem 1.25rem;
+      padding: 1.15rem 1.4rem;
       border-bottom: 1px solid var(--border-color);
       display: flex;
       align-items: center;
       justify-content: space-between;
-      background-color: rgba(17, 24, 39, 0.5);
+      background: rgba(255, 255, 255, 0.02);
+      gap: 0.75rem;
+      flex-wrap: wrap;
     }
 
     .panel-title {
-      font-size: 0.95rem;
+      font-size: 1rem;
       font-weight: 700;
       display: flex;
       align-items: center;
-      gap: 0.5rem;
+      gap: 0.6rem;
+      letter-spacing: -0.015em;
     }
 
     .panel-body {
-      padding: 1.25rem;
+      padding: 1.25rem 1.4rem;
+    }
+
+    /* Search & Filter Bar Controls */
+    .filter-bar {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      width: 100%;
+      margin-bottom: 1rem;
+      flex-wrap: wrap;
+    }
+
+    .capsule-input-wrap {
+      position: relative;
+      flex: 1;
+      min-width: 180px;
+    }
+
+    .capsule-input-wrap svg {
+      position: absolute;
+      left: 0.9rem;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--text-dim);
+      pointer-events: none;
+    }
+
+    .capsule-input {
+      width: 100%;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-pill);
+      padding: 0.45rem 1rem 0.45rem 2.3rem;
+      font-size: 0.8rem;
+      color: var(--text-main);
+      font-family: var(--font-family);
+      outline: none;
+      transition: all 0.2s;
+    }
+
+    .capsule-input:focus {
+      background: rgba(255, 255, 255, 0.07);
+      border-color: var(--primary);
+      box-shadow: 0 0 16px var(--primary-glow);
+    }
+
+    .capsule-input::placeholder {
+      color: var(--text-dim);
+    }
+
+    /* Kapsül Filtre Çipleri (Filter Chips) */
+    .filter-chips {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      flex-wrap: wrap;
+    }
+
+    .filter-chip {
+      font-size: 0.725rem;
+      font-weight: 600;
+      padding: 0.325rem 0.8rem;
+      border-radius: var(--radius-pill);
+      cursor: pointer;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid var(--border-color);
+      color: var(--text-muted);
+      transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+      user-select: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+    }
+
+    .filter-chip:hover {
+      background: rgba(255, 255, 255, 0.08);
+      color: var(--text-main);
+      border-color: var(--border-color-light);
+    }
+
+    .filter-chip.active {
+      background: var(--primary-gradient);
+      color: #FFF;
+      border-color: rgba(255, 255, 255, 0.2);
+      box-shadow: 0 4px 14px var(--primary-glow);
+    }
+
+    .filter-chip.chip-error.active {
+      background: var(--danger-gradient);
+      box-shadow: 0 4px 14px var(--danger-glow);
     }
 
     /* Services List */
@@ -307,59 +503,77 @@
       display: flex;
       flex-direction: column;
       gap: 0.85rem;
-      max-height: 700px;
+      max-height: 720px;
       overflow-y: auto;
+      padding-right: 0.25rem;
+    }
+
+    .services-list::-webkit-scrollbar,
+    .table-responsive::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+
+    .services-list::-webkit-scrollbar-thumb,
+    .table-responsive::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.15);
+      border-radius: var(--radius-pill);
     }
 
     .service-card {
-      background-color: rgba(30, 41, 59, 0.3);
+      background: var(--bg-surface-elevated);
       border: 1px solid var(--border-color);
-      border-radius: var(--radius-sm);
-      padding: 1rem;
+      border-radius: 14px;
+      padding: 1.1rem 1.25rem;
       display: flex;
       flex-direction: column;
-      gap: 0.65rem;
-      transition: border-color 0.2s, background-color 0.2s;
+      gap: 0.75rem;
+      transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+      position: relative;
     }
 
     .service-card:hover {
       border-color: var(--border-color-light);
-      background-color: rgba(30, 41, 59, 0.5);
+      background: rgba(40, 53, 76, 0.6);
+      transform: translateY(-1px);
+      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25);
     }
 
     .service-card.is-zombie {
-      border-color: rgba(239, 68, 68, 0.4);
-      background-color: rgba(239, 68, 68, 0.05);
+      border-color: rgba(239, 68, 68, 0.45);
+      background: rgba(239, 68, 68, 0.06);
     }
 
     .service-top {
       display: flex;
       align-items: flex-start;
       justify-content: space-between;
-      gap: 0.5rem;
+      gap: 0.75rem;
     }
 
     .service-host-wrap {
       display: flex;
       flex-direction: column;
-      gap: 0.15rem;
+      gap: 0.25rem;
     }
 
     .service-host {
       font-weight: 700;
-      font-size: 0.95rem;
+      font-size: 1rem;
       color: var(--text-main);
       display: flex;
       align-items: center;
-      gap: 0.4rem;
+      gap: 0.5rem;
+      letter-spacing: -0.015em;
     }
 
     .status-dot {
-      width: 7px;
-      height: 7px;
+      width: 8px;
+      height: 8px;
       border-radius: 50%;
       background-color: var(--success);
-      box-shadow: 0 0 6px var(--success-glow);
+      box-shadow: 0 0 10px var(--success);
+      flex-shrink: 0;
     }
 
     .status-dot.offline {
@@ -373,8 +587,15 @@
       display: flex;
       align-items: center;
       flex-wrap: wrap;
-      gap: 0.5rem;
-      font-family: monospace;
+      gap: 0.65rem;
+      font-family: var(--font-mono);
+    }
+
+    .service-meta-pill {
+      background: rgba(255, 255, 255, 0.05);
+      padding: 0.15rem 0.5rem;
+      border-radius: var(--radius-pill);
+      border: 1px solid var(--border-color);
     }
 
     .service-badges {
@@ -382,227 +603,158 @@
       align-items: center;
       flex-wrap: wrap;
       gap: 0.35rem;
+      justify-content: flex-end;
     }
 
     .badge {
-      font-size: 0.68rem;
+      font-size: 0.7rem;
       font-weight: 600;
-      padding: 0.15rem 0.45rem;
-      border-radius: 4px;
+      padding: 0.2rem 0.65rem;
+      border-radius: var(--radius-pill);
       display: inline-flex;
       align-items: center;
-      gap: 0.25rem;
+      gap: 0.3rem;
+      border: 1px solid transparent;
+      backdrop-filter: blur(8px);
     }
 
     .badge-agent {
-      background-color: rgba(79, 70, 229, 0.2);
-      color: #A5B4FC;
-      border: 1px solid rgba(79, 70, 229, 0.4);
+      background: rgba(99, 102, 241, 0.18);
+      color: #C7D2FE;
+      border-color: rgba(99, 102, 241, 0.35);
     }
 
     .badge-zombie {
-      background-color: rgba(239, 68, 68, 0.2);
+      background: rgba(239, 68, 68, 0.18);
       color: #FCA5A5;
-      border: 1px solid rgba(239, 68, 68, 0.4);
+      border-color: rgba(239, 68, 68, 0.35);
     }
 
     .badge-pinned {
-      background-color: rgba(245, 158, 11, 0.2);
-      color: #FCD34D;
-      border: 1px solid rgba(245, 158, 11, 0.4);
+      background: rgba(245, 158, 11, 0.18);
+      color: #FDE68A;
+      border-color: rgba(245, 158, 11, 0.35);
     }
 
     .badge-branch {
-      background-color: rgba(16, 185, 129, 0.15);
-      color: #6EE7B7;
-      border: 1px solid rgba(16, 185, 129, 0.3);
+      background: rgba(16, 185, 129, 0.15);
+      color: #A7F3D0;
+      border-color: rgba(16, 185, 129, 0.3);
     }
 
     .service-actions {
       display: flex;
       align-items: center;
       justify-content: flex-end;
-      gap: 0.4rem;
-      border-top: 1px solid rgba(51, 65, 85, 0.3);
-      padding-top: 0.5rem;
-      margin-top: 0.2rem;
+      gap: 0.5rem;
+      border-top: 1px solid rgba(255, 255, 255, 0.06);
+      padding-top: 0.75rem;
+      margin-top: 0.25rem;
     }
 
-    .btn {
-      font-size: 0.75rem;
-      font-weight: 600;
-      padding: 0.3rem 0.65rem;
-      border-radius: var(--radius-sm);
-      cursor: pointer;
-      border: 1px solid transparent;
-      transition: all 0.15s ease;
-      display: inline-flex;
-      align-items: center;
-      gap: 0.3rem;
-      text-decoration: none;
-    }
-
-    .btn-primary {
-      background-color: var(--primary);
-      color: #FFF;
-      border-color: var(--primary-light);
-    }
-
-    .btn-primary:hover {
-      background-color: var(--primary-light);
-    }
-
-    .btn-outline {
-      background-color: transparent;
-      border-color: var(--border-color-light);
-      color: var(--text-muted);
-    }
-
-    .btn-outline:hover {
-      background-color: var(--bg-surface-hover);
-      color: var(--text-main);
-      border-color: var(--text-muted);
-    }
-
-    .btn-danger-outline {
-      background-color: transparent;
-      border-color: rgba(239, 68, 68, 0.4);
-      color: #FCA5A5;
-    }
-
-    .btn-danger-outline:hover {
-      background-color: var(--danger);
-      color: #FFF;
-      border-color: var(--danger);
-    }
-
-    /* HTTP Tap Table Controls */
-    .tap-controls {
-      display: flex;
-      align-items: center;
-      gap: 0.75rem;
-      flex-wrap: wrap;
-    }
-
-    .search-input {
-      background-color: var(--bg-base);
-      border: 1px solid var(--border-color);
-      color: var(--text-main);
-      padding: 0.35rem 0.65rem;
-      font-size: 0.8rem;
-      border-radius: var(--radius-sm);
-      outline: none;
-      min-width: 180px;
-    }
-
-    .search-input:focus {
-      border-color: var(--primary-light);
-    }
-
-    .filter-checkbox-label {
-      font-size: 0.78rem;
-      color: var(--text-muted);
-      display: flex;
-      align-items: center;
-      gap: 0.35rem;
-      cursor: pointer;
-      user-select: none;
-    }
-
-    /* Table */
+    /* HTTP Tap Table */
     .table-responsive {
       overflow-x: auto;
-      max-height: 700px;
-      overflow-y: auto;
+      max-height: 660px;
     }
 
     table {
       width: 100%;
-      border-collapse: collapse;
-      font-size: 0.825rem;
-      text-align: left;
+      border-collapse: separate;
+      border-spacing: 0;
+      font-size: 0.8rem;
     }
 
     th {
-      background-color: rgba(17, 24, 39, 0.8);
-      color: var(--text-dim);
+      background: rgba(15, 23, 42, 0.85);
+      color: var(--text-muted);
       font-weight: 600;
       text-transform: uppercase;
-      font-size: 0.7rem;
+      font-size: 0.725rem;
       letter-spacing: 0.05em;
-      padding: 0.75rem 1rem;
+      padding: 0.85rem 1rem;
       border-bottom: 1px solid var(--border-color);
+      text-align: left;
       position: sticky;
       top: 0;
       z-index: 10;
+      backdrop-filter: blur(8px);
     }
 
     td {
-      padding: 0.65rem 1rem;
-      border-bottom: 1px solid var(--border-color);
-      color: var(--text-muted);
+      padding: 0.85rem 1rem;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+      color: var(--text-main);
       vertical-align: middle;
     }
 
-    tr.tap-row {
+    .tap-row {
       cursor: pointer;
       transition: background-color 0.15s;
     }
 
-    tr.tap-row:hover {
-      background-color: var(--bg-surface-hover);
+    .tap-row:hover {
+      background-color: rgba(255, 255, 255, 0.05);
     }
 
-    tr.tap-row.active {
-      background-color: var(--bg-surface-active);
+    .tap-row.active {
+      background-color: rgba(99, 102, 241, 0.12);
+      border-left: 2px solid var(--primary);
     }
 
+    /* Method & Status Badges */
     .method-badge {
+      font-family: var(--font-mono);
+      font-size: 0.725rem;
       font-weight: 700;
-      font-size: 0.7rem;
-      padding: 0.2rem 0.45rem;
-      border-radius: 4px;
-      font-family: monospace;
+      padding: 0.2rem 0.65rem;
+      border-radius: var(--radius-pill);
       display: inline-block;
+      text-align: center;
+      border: 1px solid transparent;
     }
 
-    .method-GET { background: rgba(59, 130, 246, 0.2); color: #93C5FD; border: 1px solid rgba(59, 130, 246, 0.4); }
-    .method-POST { background: rgba(16, 185, 129, 0.2); color: #6EE7B7; border: 1px solid rgba(16, 185, 129, 0.4); }
-    .method-PUT { background: rgba(245, 158, 11, 0.2); color: #FCD34D; border: 1px solid rgba(245, 158, 11, 0.4); }
-    .method-PATCH { background: rgba(168, 85, 247, 0.2); color: #D8B4FE; border: 1px solid rgba(168, 85, 247, 0.4); }
-    .method-DELETE { background: rgba(239, 68, 68, 0.2); color: #FCA5A5; border: 1px solid rgba(239, 68, 68, 0.4); }
-    .method-OPTIONS { background: rgba(148, 163, 184, 0.2); color: #CBD5E1; border: 1px solid rgba(148, 163, 184, 0.4); }
+    .method-GET { background: rgba(16, 185, 129, 0.15); color: #6EE7B7; border-color: rgba(16, 185, 129, 0.3); }
+    .method-POST { background: rgba(99, 102, 241, 0.18); color: #C7D2FE; border-color: rgba(99, 102, 241, 0.35); }
+    .method-PUT { background: rgba(245, 158, 11, 0.18); color: #FDE68A; border-color: rgba(245, 158, 11, 0.35); }
+    .method-PATCH { background: rgba(217, 70, 239, 0.18); color: #F5D0FE; border-color: rgba(217, 70, 239, 0.35); }
+    .method-DELETE { background: rgba(239, 68, 68, 0.18); color: #FCA5A5; border-color: rgba(239, 68, 68, 0.35); }
 
     .status-badge {
+      font-family: var(--font-mono);
+      font-size: 0.725rem;
       font-weight: 700;
-      font-size: 0.72rem;
-      font-family: monospace;
-      padding: 0.15rem 0.45rem;
-      border-radius: 4px;
+      padding: 0.2rem 0.65rem;
+      border-radius: var(--radius-pill);
+      display: inline-block;
+      border: 1px solid transparent;
     }
 
-    .status-2xx { color: var(--success); }
-    .status-3xx { color: var(--info); }
-    .status-4xx { color: var(--warning); }
-    .status-5xx { color: var(--danger); }
+    .status-2xx { background: rgba(16, 185, 129, 0.15); color: #6EE7B7; border-color: rgba(16, 185, 129, 0.3); }
+    .status-3xx { background: rgba(6, 182, 212, 0.15); color: #67E8F9; border-color: rgba(6, 182, 212, 0.3); }
+    .status-4xx { background: rgba(245, 158, 11, 0.18); color: #FDE68A; border-color: rgba(245, 158, 11, 0.35); }
+    .status-5xx { background: rgba(239, 68, 68, 0.18); color: #FCA5A5; border-color: rgba(239, 68, 68, 0.35); }
 
     .path-cell {
-      font-family: monospace;
-      color: var(--text-main);
-      max-width: 320px;
+      font-family: var(--font-mono);
+      font-size: 0.8rem;
+      color: #E2E8F0;
+      max-width: 280px;
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
     }
 
     .service-cell {
-      font-family: monospace;
+      font-family: var(--font-mono);
+      font-size: 0.775rem;
       color: #A5B4FC;
     }
 
     .duration-cell {
-      font-family: monospace;
+      font-family: var(--font-mono);
       font-size: 0.75rem;
+      color: var(--text-muted);
     }
 
     /* Slide-over Drawer */
@@ -612,8 +764,9 @@
       left: 0;
       width: 100%;
       height: 100%;
-      background: rgba(0, 0, 0, 0.6);
-      backdrop-filter: blur(4px);
+      background: rgba(0, 0, 0, 0.65);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
       z-index: 100;
       opacity: 0;
       pointer-events: none;
@@ -629,15 +782,15 @@
       position: fixed;
       top: 0;
       right: 0;
-      width: 680px;
-      max-width: 90vw;
+      width: 720px;
+      max-width: 92vw;
       height: 100%;
-      background-color: var(--bg-surface);
+      background: #0E1524;
       border-left: 1px solid var(--border-color-light);
-      box-shadow: -8px 0 32px rgba(0, 0, 0, 0.5);
+      box-shadow: -12px 0 48px rgba(0, 0, 0, 0.6);
       z-index: 101;
       transform: translateX(100%);
-      transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+      transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1);
       display: flex;
       flex-direction: column;
     }
@@ -647,90 +800,100 @@
     }
 
     .drawer-header {
-      padding: 1.25rem 1.5rem;
+      padding: 1.25rem 1.75rem;
       border-bottom: 1px solid var(--border-color);
       display: flex;
       align-items: center;
       justify-content: space-between;
-      background-color: rgba(17, 24, 39, 0.7);
+      background: rgba(15, 23, 42, 0.8);
+      backdrop-filter: blur(12px);
     }
 
     .drawer-title-wrap {
       display: flex;
       align-items: center;
-      gap: 0.65rem;
+      gap: 0.75rem;
+      flex-wrap: wrap;
     }
 
-    .drawer-close {
-      background: transparent;
-      border: none;
+    .drawer-close-pill {
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid var(--border-color);
       color: var(--text-muted);
       cursor: pointer;
-      font-size: 1.25rem;
-      padding: 0.25rem;
+      font-size: 1.15rem;
+      width: 32px;
+      height: 32px;
+      border-radius: var(--radius-pill);
       display: flex;
       align-items: center;
       justify-content: center;
-      border-radius: var(--radius-sm);
+      transition: all 0.2s;
     }
 
-    .drawer-close:hover {
+    .drawer-close-pill:hover {
       color: var(--text-main);
-      background-color: var(--bg-surface-hover);
+      background: rgba(255, 255, 255, 0.12);
+      transform: scale(1.05);
     }
 
     .drawer-tabs {
       display: flex;
+      gap: 0.5rem;
       border-bottom: 1px solid var(--border-color);
-      background-color: rgba(17, 24, 39, 0.4);
-      padding: 0 1.5rem;
+      background: rgba(11, 15, 25, 0.6);
+      padding: 0.75rem 1.75rem;
     }
 
-    .tab-btn {
-      padding: 0.75rem 1rem;
-      font-size: 0.825rem;
+    .tab-pill {
+      padding: 0.45rem 1rem;
+      font-size: 0.8rem;
       font-weight: 600;
       color: var(--text-muted);
-      background: none;
-      border: none;
-      border-bottom: 2px solid transparent;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid transparent;
+      border-radius: var(--radius-pill);
       cursor: pointer;
-      transition: all 0.15s;
+      transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
     }
 
-    .tab-btn:hover {
+    .tab-pill:hover {
       color: var(--text-main);
+      background: rgba(255, 255, 255, 0.08);
     }
 
-    .tab-btn.active {
-      color: var(--primary-light);
-      border-bottom-color: var(--primary-light);
+    .tab-pill.active {
+      color: #FFF;
+      background: var(--primary-gradient);
+      border-color: rgba(255, 255, 255, 0.2);
+      box-shadow: 0 4px 14px var(--primary-glow);
     }
 
     .drawer-content {
       flex: 1;
-      padding: 1.5rem;
+      padding: 1.75rem;
       overflow-y: auto;
       display: flex;
       flex-direction: column;
-      gap: 1.25rem;
+      gap: 1.35rem;
     }
 
     .meta-box {
-      background-color: rgba(11, 15, 25, 0.5);
+      background: rgba(255, 255, 255, 0.03);
       border: 1px solid var(--border-color);
-      border-radius: var(--radius-sm);
-      padding: 0.85rem 1rem;
-      font-size: 0.8rem;
+      border-radius: 12px;
+      padding: 1rem 1.25rem;
+      font-size: 0.825rem;
       display: flex;
       flex-direction: column;
-      gap: 0.4rem;
+      gap: 0.5rem;
     }
 
     .meta-row {
       display: flex;
       justify-content: space-between;
       gap: 1rem;
+      align-items: center;
     }
 
     .meta-label {
@@ -739,72 +902,81 @@
     }
 
     .meta-val {
-      font-family: monospace;
+      font-family: var(--font-mono);
       color: var(--text-main);
       text-align: right;
       word-break: break-all;
     }
 
+    .section-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 0.5rem;
+    }
+
     .section-title {
-      font-size: 0.8rem;
+      font-size: 0.775rem;
       font-weight: 700;
       color: var(--text-muted);
       text-transform: uppercase;
-      letter-spacing: 0.04em;
-      margin-bottom: 0.35rem;
+      letter-spacing: 0.05em;
     }
 
     pre.code-block {
-      background-color: var(--bg-base);
+      background: rgba(4, 7, 13, 0.85);
       border: 1px solid var(--border-color);
-      border-radius: var(--radius-sm);
-      padding: 1rem;
-      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      border-radius: 12px;
+      padding: 1.1rem;
+      font-family: var(--font-mono);
       font-size: 0.775rem;
       color: #E2E8F0;
       overflow-x: auto;
       max-height: 280px;
       white-space: pre-wrap;
       word-break: break-all;
+      line-height: 1.55;
     }
 
     .drawer-footer {
-      padding: 1rem 1.5rem;
+      padding: 1.15rem 1.75rem;
       border-top: 1px solid var(--border-color);
       display: flex;
       align-items: center;
       justify-content: flex-end;
       gap: 0.75rem;
-      background-color: rgba(17, 24, 39, 0.7);
+      background: rgba(15, 23, 42, 0.8);
+      backdrop-filter: blur(12px);
     }
 
     /* Toast */
     .toast-container {
       position: fixed;
-      bottom: 1.5rem;
-      right: 1.5rem;
+      bottom: 2rem;
+      right: 2rem;
       display: flex;
       flex-direction: column;
-      gap: 0.5rem;
+      gap: 0.65rem;
       z-index: 200;
       pointer-events: none;
     }
 
     .toast {
-      background-color: var(--bg-surface);
+      background: rgba(15, 23, 42, 0.95);
       border: 1px solid var(--border-color-light);
-      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
-      padding: 0.65rem 1rem;
-      border-radius: var(--radius-sm);
+      box-shadow: 0 10px 32px rgba(0, 0, 0, 0.5);
+      padding: 0.75rem 1.25rem;
+      border-radius: var(--radius-pill);
       font-size: 0.825rem;
       color: var(--text-main);
       display: flex;
       align-items: center;
-      gap: 0.5rem;
+      gap: 0.65rem;
       opacity: 0;
-      transform: translateY(10px);
-      transition: all 0.2s ease-out;
+      transform: translateY(12px);
+      transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
       pointer-events: auto;
+      backdrop-filter: blur(12px);
     }
 
     .toast.show {
@@ -813,16 +985,77 @@
     }
 
     .toast.error {
-      border-color: var(--danger);
+      border-color: rgba(239, 68, 68, 0.5);
+      background: rgba(45, 15, 15, 0.95);
       color: #FCA5A5;
     }
 
     /* Empty state */
-    .empty-state {
-      padding: 2.5rem 1rem;
+    .empty-state-wrap {
+      padding: 3rem 1.5rem;
       text-align: center;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 0.85rem;
+    }
+
+    .empty-state-icon {
+      width: 48px;
+      height: 48px;
+      border-radius: var(--radius-pill);
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid var(--border-color);
+      display: flex;
+      align-items: center;
+      justify-content: center;
       color: var(--text-dim);
+    }
+
+    .empty-state-text {
+      color: var(--text-muted);
       font-size: 0.85rem;
+      max-width: 320px;
+      line-height: 1.5;
+    }
+
+    /* Footer Shortcut Bar */
+    footer {
+      border-top: 1px solid var(--border-color);
+      background: rgba(11, 15, 25, 0.7);
+      backdrop-filter: blur(10px);
+      padding: 0.75rem 2rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 0.75rem;
+      color: var(--text-dim);
+      flex-wrap: wrap;
+      gap: 0.75rem;
+    }
+
+    .kbd-list {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+    }
+
+    .kbd-item {
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+    }
+
+    kbd {
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid var(--border-color-light);
+      border-radius: 4px;
+      padding: 0.1rem 0.4rem;
+      font-family: var(--font-mono);
+      font-size: 0.7rem;
+      color: var(--text-main);
     }
   </style>
 </head>
@@ -861,7 +1094,7 @@
       <div class="metric-card">
         <div class="metric-header">
           <span class="metric-title">Aktif Servisler</span>
-          <div class="metric-icon" style="color: var(--success);">
+          <div class="metric-icon-pill" style="color: var(--success);">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <rect x="2" y="2" width="20" height="8" rx="2" ry="2"/>
               <rect x="2" y="14" width="20" height="8" rx="2" ry="2"/>
@@ -878,7 +1111,7 @@
       <div class="metric-card">
         <div class="metric-header">
           <span class="metric-title">Yakalanan HTTP İstekleri</span>
-          <div class="metric-icon" style="color: var(--primary-light);">
+          <div class="metric-icon-pill" style="color: #818CF8;">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
             </svg>
@@ -892,7 +1125,7 @@
       <div class="metric-card">
         <div class="metric-header">
           <span class="metric-title">4xx / 5xx Hataları</span>
-          <div class="metric-icon" style="color: var(--danger);">
+          <div class="metric-icon-pill" style="color: var(--danger);">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <circle cx="12" cy="12" r="10"/>
               <line x1="12" y1="8" x2="12" y2="12"/>
@@ -908,7 +1141,7 @@
       <div class="metric-card">
         <div class="metric-header">
           <span class="metric-title">Tespit Edilen Zombiler</span>
-          <div class="metric-icon" style="color: var(--warning);">
+          <div class="metric-icon-pill" style="color: var(--warning);">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
               <line x1="12" y1="9" x2="12" y2="13"/>
@@ -919,7 +1152,7 @@
         <div class="metric-value-wrap">
           <div class="metric-value" id="metric-zombie-count">0</div>
           <button class="btn-sweep" id="btn-sweep-zombies" onclick="sweepZombies()">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <polyline points="3 6 5 6 21 6"/>
               <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
             </svg>
@@ -935,7 +1168,7 @@
       <section class="panel">
         <div class="panel-header">
           <div class="panel-title">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/>
               <line x1="8" y1="21" x2="16" y2="21"/>
               <line x1="12" y1="17" x2="12" y2="21"/>
@@ -945,8 +1178,28 @@
           <span class="brand-badge" id="services-badge">0 servis</span>
         </div>
         <div class="panel-body">
+          <!-- Arama Filtresi -->
+          <div class="filter-bar">
+            <div class="capsule-input-wrap">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="11" cy="11" r="8"></circle>
+                <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+              </svg>
+              <input type="text" id="service-search" class="capsule-input" placeholder="Servis veya port ara..." oninput="renderServices()">
+            </div>
+          </div>
+
           <div class="services-list" id="services-list">
-            <div class="empty-state">Henüz keşfedilen veya sabitlenen servis yok.</div>
+            <div class="empty-state-wrap">
+              <div class="empty-state-icon">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                  <circle cx="12" cy="12" r="10"/>
+                  <line x1="12" y1="8" x2="12" y2="12"/>
+                  <line x1="12" y1="16" x2="12.01" y2="16"/>
+                </svg>
+              </div>
+              <div class="empty-state-text">Henüz çalışan geliştirme sunucusu bulunamadı.<br><small style="color: var(--text-dim);">Vite, Next.js veya FastAPI başlattığınızda burada otomatik belirecektir.</small></div>
+            </div>
           </div>
         </div>
       </section>
@@ -955,38 +1208,64 @@
       <section class="panel">
         <div class="panel-header">
           <div class="panel-title">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
             </svg>
             <span>Canlı HTTP Tap & Replay</span>
           </div>
-          <div class="tap-controls">
-            <input type="text" id="tap-search" class="search-input" placeholder="Filtrele (path, servis)..." oninput="applyFilters()">
-            <label class="filter-checkbox-label">
-              <input type="checkbox" id="filter-errors" onchange="toggleErrorFilter()">
-              <span>Sadece Hatalar (4xx/5xx)</span>
-            </label>
-            <button class="btn btn-outline" style="padding: 0.25rem 0.5rem;" onclick="clearExchanges()">Temizle</button>
-          </div>
+          <span class="brand-badge" id="requests-badge">0 istek</span>
         </div>
-        <div class="table-responsive">
-          <table>
-            <thead>
-              <tr>
-                <th style="width: 80px;">Metod</th>
-                <th style="width: 70px;">Durum</th>
-                <th style="width: 80px;">Süre</th>
-                <th style="width: 140px;">Servis</th>
-                <th>İstek Yolu (Path)</th>
-                <th style="width: 150px; text-align: right;">İşlemler</th>
-              </tr>
-            </thead>
-            <tbody id="exchanges-tbody">
-              <tr>
-                <td colspan="6" class="empty-state">Henüz yakalanan HTTP trafiği yok. İstekler proxy üzerinden aktıkça burada canlı listelenecektir.</td>
-              </tr>
-            </tbody>
-          </table>
+        <div class="panel-body">
+          <!-- Kapsül Filtreler ve Arama -->
+          <div class="filter-bar">
+            <div class="capsule-input-wrap">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="11" cy="11" r="8"></circle>
+                <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+              </svg>
+              <input type="text" id="tap-search" class="capsule-input" placeholder="Yol (path) veya servis ara..." oninput="renderExchanges()">
+            </div>
+
+            <div class="filter-chips">
+              <button class="filter-chip active" id="chip-all" onclick="setTapFilter('all')">Tümü</button>
+              <button class="filter-chip" id="chip-2xx" onclick="setTapFilter('2xx')">2xx Başarılı</button>
+              <button class="filter-chip chip-error" id="chip-errors" onclick="setTapFilter('errors')">4xx/5xx Hatalar</button>
+              <button class="filter-chip" id="chip-write" onclick="setTapFilter('write')">POST/PUT</button>
+              <button class="btn btn-sm btn-outline" onclick="clearExchanges()" title="Tabloyu temizle">Temizle</button>
+            </div>
+          </div>
+
+          <!-- Hidden checkbox for backwards-compatible test checks -->
+          <input type="checkbox" id="filter-errors" style="display: none;" onchange="renderExchanges()">
+
+          <div class="table-responsive">
+            <table>
+              <thead>
+                <tr>
+                  <th style="width: 85px;">Metod</th>
+                  <th style="width: 75px;">Durum</th>
+                  <th style="width: 80px;">Süre</th>
+                  <th style="width: 140px;">Servis</th>
+                  <th>İstek Yolu (Path)</th>
+                  <th style="width: 170px; text-align: right;">Kapsül İşlemler</th>
+                </tr>
+              </thead>
+              <tbody id="exchanges-tbody">
+                <tr>
+                  <td colspan="6">
+                    <div class="empty-state-wrap">
+                      <div class="empty-state-icon">
+                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                          <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+                        </svg>
+                      </div>
+                      <div class="empty-state-text">Henüz yakalanan HTTP trafiği yok.<br><small style="color: var(--text-dim);">İstekler proxy üzerinden aktıkça burada canlı listelenecektir.</small></div>
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
         </div>
       </section>
     </div>
@@ -998,72 +1277,104 @@
     <div class="drawer-header">
       <div class="drawer-title-wrap">
         <span class="method-badge" id="drawer-method">GET</span>
-        <span style="font-weight: 700; font-family: monospace;" id="drawer-path">/</span>
+        <span style="font-weight: 700; font-family: var(--font-mono); font-size: 0.95rem;" id="drawer-path">/</span>
         <span class="status-badge" id="drawer-status">200 OK</span>
       </div>
-      <button class="drawer-close" onclick="closeDrawer()">&times;</button>
+      <button class="drawer-close-pill" onclick="closeDrawer()" title="Kapat (Esc)">&times;</button>
     </div>
 
     <div class="drawer-tabs">
-      <button class="tab-btn active" onclick="switchDrawerTab('request')">İstek (Request)</button>
-      <button class="tab-btn" onclick="switchDrawerTab('response')">Yanıt (Response)</button>
-      <button class="tab-btn" onclick="switchDrawerTab('diff')">Replay / Diff</button>
+      <button class="tab-pill active" onclick="switchDrawerTab('request')">İstek (Request)</button>
+      <button class="tab-pill" onclick="switchDrawerTab('response')">Yanıt (Response)</button>
+      <button class="tab-pill" onclick="switchDrawerTab('diff')">Replay / Diff</button>
     </div>
 
     <div class="drawer-content">
       <!-- Request Tab -->
       <div id="drawer-tab-request">
-        <div class="meta-box" style="margin-bottom: 1rem;">
+        <div class="meta-box" style="margin-bottom: 1.25rem;">
           <div class="meta-row"><span class="meta-label">Hedef URL:</span><span class="meta-val" id="d-req-url">-</span></div>
           <div class="meta-row"><span class="meta-label">Host:</span><span class="meta-val" id="d-req-host">-</span></div>
           <div class="meta-row"><span class="meta-label">İçerik Tipi:</span><span class="meta-val" id="d-req-content-type">-</span></div>
         </div>
 
-        <div class="section-title">Başlıklar (Headers)</div>
+        <div class="section-header">
+          <span class="section-title">Başlıklar (Headers)</span>
+          <button class="btn btn-sm btn-outline" onclick="copySnippet('d-req-headers')">📋 Kopyala</button>
+        </div>
         <pre class="code-block" id="d-req-headers">-</pre>
 
-        <div class="section-title" style="margin-top: 1rem;">Gövde (Body)</div>
+        <div class="section-header" style="margin-top: 1.25rem;">
+          <span class="section-title">Gövde (Body)</span>
+          <button class="btn btn-sm btn-outline" onclick="copySnippet('d-req-body')">📋 Kopyala</button>
+        </div>
         <pre class="code-block" id="d-req-body">-</pre>
       </div>
 
       <!-- Response Tab -->
       <div id="drawer-tab-response" style="display: none;">
-        <div class="meta-box" style="margin-bottom: 1rem;">
+        <div class="meta-box" style="margin-bottom: 1.25rem;">
           <div class="meta-row"><span class="meta-label">Durum:</span><span class="meta-val" id="d-resp-status">-</span></div>
           <div class="meta-row"><span class="meta-label">Gecikme / Süre:</span><span class="meta-val" id="d-resp-duration">-</span></div>
           <div class="meta-row"><span class="meta-label">İçerik Tipi:</span><span class="meta-val" id="d-resp-content-type">-</span></div>
         </div>
 
-        <div class="section-title">Başlıklar (Headers)</div>
+        <div class="section-header">
+          <span class="section-title">Başlıklar (Headers)</span>
+          <button class="btn btn-sm btn-outline" onclick="copySnippet('d-resp-headers')">📋 Kopyala</button>
+        </div>
         <pre class="code-block" id="d-resp-headers">-</pre>
 
-        <div class="section-title" style="margin-top: 1rem;">Gövde (Body)</div>
+        <div class="section-header" style="margin-top: 1.25rem;">
+          <span class="section-title">Gövde (Body)</span>
+          <button class="btn btn-sm btn-outline" onclick="copySnippet('d-resp-body')">📋 Kopyala</button>
+        </div>
         <pre class="code-block" id="d-resp-body">-</pre>
       </div>
 
       <!-- Diff / Replay Tab -->
       <div id="drawer-tab-diff" style="display: none;">
-        <div class="meta-box" style="margin-bottom: 1rem;">
+        <div class="meta-box" style="margin-bottom: 1.25rem;">
           <div class="meta-row"><span class="meta-label">Exchange ID:</span><span class="meta-val" id="d-diff-id">-</span></div>
           <div class="meta-row"><span class="meta-label">Replayed Of:</span><span class="meta-val" id="d-diff-replayed-of">-</span></div>
-          <div class="meta-row"><span class="meta-label">Hata:</span><span class="meta-val" id="d-diff-error">-</span></div>
+          <div class="meta-row"><span class="meta-label">Hata Durumu:</span><span class="meta-val" id="d-diff-error">-</span></div>
         </div>
-        <div class="section-title">Orijinal vs Tekrarlanan Durum Analizi</div>
+        <div class="section-header">
+          <span class="section-title">Orijinal vs Tekrarlanan Durum Analizi</span>
+          <button class="btn btn-sm btn-outline" onclick="copySnippet('d-diff-content')">📋 Kopyala</button>
+        </div>
         <pre class="code-block" id="d-diff-content">-</pre>
       </div>
     </div>
 
     <div class="drawer-footer">
-      <button class="btn btn-outline" id="drawer-btn-curl" onclick="copyDrawerCurl()">Copy cURL</button>
+      <button class="btn btn-outline" id="drawer-btn-curl" onclick="copyDrawerCurl()">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+          <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+        </svg>
+        cURL Kopyala
+      </button>
       <button class="btn btn-primary" id="drawer-btn-replay" onclick="replayDrawerExchange()">
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <polyline points="1 4 1 10 7 10"/>
           <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/>
         </svg>
-        Replay
+        Tekrar Oynat (Replay)
       </button>
     </div>
   </div>
+
+  <!-- Bottom Footer with Keyboard Shortcuts -->
+  <footer>
+    <div class="kbd-list">
+      <div class="kbd-item"><kbd>/</kbd> Filtrele</div>
+      <div class="kbd-item"><kbd>Esc</kbd> Kapat</div>
+      <div class="kbd-item"><kbd>r</kbd> Replay</div>
+      <div class="kbd-item"><kbd>c</kbd> cURL</div>
+    </div>
+    <div>lazylocal &bull; Zero-Config .localhost Dev Proxy</div>
+  </footer>
 
   <!-- Toast Notifications -->
   <div class="toast-container" id="toast-container"></div>
@@ -1073,7 +1384,7 @@
     let services = [];
     let exchanges = [];
     let currentExchange = null;
-    let onlyErrors = false;
+    let currentTapFilter = 'all';
 
     // Token setup
     const CSRF_TOKEN = window.__LAZYLOCAL_TOKEN__ || '';
@@ -1113,13 +1424,27 @@
       const container = document.getElementById('toast-container');
       const toast = document.createElement('div');
       toast.className = 'toast' + (isError ? ' error' : '');
-      toast.textContent = text;
+      toast.innerHTML = (isError ? '❌ ' : '✓ ') + escapeHtml(text);
       container.appendChild(toast);
       requestAnimationFrame(() => toast.classList.add('show'));
       setTimeout(() => {
         toast.classList.remove('show');
         setTimeout(() => toast.remove(), 250);
-      }, 3000);
+      }, 3200);
+    }
+
+    // Copy to clipboard helper
+    function copyToClipboard(text, successMsg = 'Panoya kopyalandı!') {
+      navigator.clipboard.writeText(text).then(() => {
+        showToast(successMsg);
+      }).catch(() => {
+        showToast('Kopyalama başarısız oldu', true);
+      });
+    }
+
+    function copySnippet(elementId) {
+      const el = document.getElementById(elementId);
+      if (el) copyToClipboard(el.textContent, 'İçerik kopyalandı');
     }
 
     // Render Metrics
@@ -1134,7 +1459,6 @@
         errorCount += (s.error_count || 0);
       }
 
-      // Also count from exchanges if available
       if (exchanges.length > 0 && totalReqs === 0) {
         totalReqs = exchanges.length;
         errorCount = exchanges.filter(e => e.resp && e.resp.status_code >= 400).length;
@@ -1145,20 +1469,48 @@
       document.getElementById('metric-error-count').textContent = errorCount;
       document.getElementById('metric-zombie-count').textContent = zombieCount;
       document.getElementById('services-badge').textContent = `${services.length} servis`;
+      const reqBadge = document.getElementById('requests-badge');
+      if (reqBadge) reqBadge.textContent = `${exchanges.length} istek`;
     }
 
-    // Render Services List
+    // Render Services List with Live Search
     function renderServices(items) {
       if (items) services = items;
       const listEl = document.getElementById('services-list');
-      if (!services || services.length === 0) {
-        listEl.innerHTML = '<div class="empty-state">Henüz keşfedilen veya sabitlenen servis yok.</div>';
+      const searchEl = document.getElementById('service-search');
+      const searchVal = (searchEl ? searchEl.value : '').toLowerCase().trim();
+
+      let filteredServices = services;
+      if (searchVal) {
+        filteredServices = filteredServices.filter(s => {
+          const h = (s.host || '').toLowerCase();
+          const n = (s.name || '').toLowerCase();
+          const p = String(s.port || '');
+          const b = (s.branch || '').toLowerCase();
+          const r = (s.repo || '').toLowerCase();
+          return h.includes(searchVal) || n.includes(searchVal) || p.includes(searchVal) || b.includes(searchVal) || r.includes(searchVal);
+        });
+      }
+
+      if (!filteredServices || filteredServices.length === 0) {
+        listEl.innerHTML = `
+          <div class="empty-state-wrap">
+            <div class="empty-state-icon">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                <circle cx="12" cy="12" r="10"/>
+                <line x1="12" y1="8" x2="12" y2="12"/>
+                <line x1="12" y1="16" x2="12.01" y2="16"/>
+              </svg>
+            </div>
+            <div class="empty-state-text">${searchVal ? 'Arama kriterlerine uyan servis bulunamadı.' : 'Henüz çalışan geliştirme sunucusu bulunamadı.<br><small style="color: var(--text-dim);">Vite, Next.js veya FastAPI başlattığınızda burada otomatik belirecektir.</small>'}</div>
+          </div>
+        `;
         updateMetrics();
         return;
       }
 
       listEl.innerHTML = '';
-      for (const s of services) {
+      for (const s of filteredServices) {
         const isZombie = s.zombie_reason && s.zombie_reason !== '';
         const card = document.createElement('div');
         card.className = 'service-card' + (isZombie ? ' is-zombie' : '');
@@ -1167,7 +1519,7 @@
         const portDisplay = s.port ? `:${s.port}` : '';
         const targetUrl = `http://${hostDisplay}${s.port && s.port !== 80 ? ':' + s.port : ''}`;
 
-        // Badges HTML
+        // Kapsül Badges
         let badgesHtml = '';
         if (s.agent) {
           badgesHtml += `<span class="badge badge-agent">🤖 ${escapeHtml(s.agent)}</span>`;
@@ -1182,13 +1534,20 @@
           badgesHtml += `<span class="badge badge-zombie">🧟 Zombie: ${escapeHtml(s.zombie_reason)}</span>`;
         }
 
-        // Action Buttons
+        // Kapsül Aksiyon Butonları
         let actionsHtml = '';
-        actionsHtml += `<a href="${targetUrl}" target="_blank" class="btn btn-outline" style="padding: 0.2rem 0.5rem;">Aç ↗</a>`;
+        actionsHtml += `
+          <button class="btn btn-sm btn-outline" onclick="copyToClipboard('${targetUrl}', 'URL kopyalandı!')" title="URL'yi panoya kopyala">
+            📋 Kopyala
+          </button>
+          <a href="${targetUrl}" target="_blank" class="btn btn-sm btn-primary">
+            Aç ↗
+          </a>
+        `;
         if (s.running) {
-          actionsHtml += `<button class="btn btn-danger-outline" style="padding: 0.2rem 0.5rem;" onclick="killService('${escapeHtml(s.id)}', '${escapeHtml(s.name)}')">Kill</button>`;
+          actionsHtml += `<button class="btn btn-sm btn-danger-pill" onclick="killService('${escapeHtml(s.id)}', '${escapeHtml(s.name)}')">Durdur</button>`;
         } else if (s.pinned) {
-          actionsHtml += `<button class="btn btn-primary" style="padding: 0.2rem 0.5rem;" onclick="launchService('${escapeHtml(s.id)}', '${escapeHtml(s.name)}')">Launch</button>`;
+          actionsHtml += `<button class="btn btn-sm btn-success-pill" onclick="launchService('${escapeHtml(s.id)}', '${escapeHtml(s.name)}')">Başlat</button>`;
         }
 
         card.innerHTML = `
@@ -1197,11 +1556,11 @@
               <div class="service-host">
                 <span class="status-dot ${s.running ? '' : 'offline'}"></span>
                 <span>${escapeHtml(hostDisplay)}</span>
-                <span style="color: var(--text-dim); font-size: 0.8rem; font-family: monospace;">${portDisplay}</span>
+                <span style="color: var(--text-dim); font-size: 0.8rem; font-family: var(--font-mono);">${portDisplay}</span>
               </div>
               <div class="service-meta">
-                ${s.pid ? `<span>PID: ${s.pid}</span>` : ''}
-                ${s.repo ? `<span>Repo: ${escapeHtml(s.repo)}</span>` : ''}
+                ${s.pid ? `<span class="service-meta-pill">PID: ${s.pid}</span>` : ''}
+                ${s.repo ? `<span class="service-meta-pill">📁 ${escapeHtml(s.repo)}</span>` : ''}
               </div>
             </div>
             <div class="service-badges">${badgesHtml}</div>
@@ -1213,15 +1572,38 @@
       updateMetrics();
     }
 
-    // Render Exchanges Table
+    // Filter Chips logic
+    function setTapFilter(filterType) {
+      currentTapFilter = filterType;
+      document.querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'));
+      const activeBtn = document.getElementById('chip-' + filterType);
+      if (activeBtn) activeBtn.classList.add('active');
+
+      const errCheck = document.getElementById('filter-errors');
+      if (errCheck) errCheck.checked = (filterType === 'errors');
+
+      renderExchanges();
+    }
+
+    // Render Exchanges Table with Filter Chips & Search
     function renderExchanges() {
       const tbody = document.getElementById('exchanges-tbody');
       const searchVal = (document.getElementById('tap-search').value || '').toLowerCase().trim();
 
       let filtered = exchanges;
-      if (onlyErrors) {
+
+      // Apply chip filters
+      if (currentTapFilter === 'errors') {
         filtered = filtered.filter(e => e.resp && e.resp.status_code >= 400);
+      } else if (currentTapFilter === '2xx') {
+        filtered = filtered.filter(e => e.resp && e.resp.status_code >= 200 && e.resp.status_code < 300);
+      } else if (currentTapFilter === 'write') {
+        filtered = filtered.filter(e => {
+          const m = ((e.req && e.req.method) || '').toUpperCase();
+          return ['POST', 'PUT', 'PATCH', 'DELETE'].includes(m);
+        });
       }
+
       if (searchVal) {
         filtered = filtered.filter(e => {
           const path = (e.req && e.req.path ? e.req.path : '').toLowerCase();
@@ -1232,7 +1614,21 @@
       }
 
       if (filtered.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="6" class="empty-state">Kriterlere uyan yakalanmış HTTP isteği bulunamadı.</td></tr>';
+        tbody.innerHTML = `
+          <tr>
+            <td colspan="6">
+              <div class="empty-state-wrap">
+                <div class="empty-state-icon">
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                    <circle cx="11" cy="11" r="8"></circle>
+                    <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                  </svg>
+                </div>
+                <div class="empty-state-text">Filtre kriterlerine uyan yakalanmış HTTP isteği bulunamadı.</div>
+              </div>
+            </td>
+          </tr>
+        `;
         return;
       }
 
@@ -1260,8 +1656,8 @@
           <td class="service-cell">${escapeHtml(service)}</td>
           <td class="path-cell" title="${escapeHtml(path)}">${escapeHtml(path)}</td>
           <td style="text-align: right;">
-            <button class="btn btn-outline" style="padding: 0.15rem 0.4rem; font-size: 0.7rem;" onclick="copyCurl(event, '${ex.id}')">cURL</button>
-            <button class="btn btn-primary" style="padding: 0.15rem 0.4rem; font-size: 0.7rem;" onclick="replayExchange(event, '${ex.id}')">Replay</button>
+            <button class="btn btn-sm btn-outline" onclick="copyCurl(event, '${ex.id}')" title="cURL komutunu kopyala">cURL</button>
+            <button class="btn btn-sm btn-primary" onclick="replayExchange(event, '${ex.id}')" title="İsteği tekrar gönder">Replay</button>
           </td>
         `;
         tbody.appendChild(tr);
@@ -1271,7 +1667,6 @@
     // Add single exchange from live SSE
     function addExchange(ex) {
       if (!ex || !ex.id) return;
-      // Prepend to list
       exchanges.unshift(ex);
       if (exchanges.length > 500) {
         exchanges.pop();
@@ -1285,7 +1680,7 @@
       if (!confirm(`"${name || id}" servisini durdurmak istediğinize emin misiniz?`)) return;
       try {
         await apiPost('/api/kill?id=' + encodeURIComponent(id));
-        showToast(`✓ "${name || id}" servisi durduruldu`);
+        showToast(`"${name || id}" servisi durduruldu`);
         loadServices();
       } catch (err) {
         showToast('Hata: ' + err.message, true);
@@ -1295,7 +1690,7 @@
     async function launchService(id, name) {
       try {
         await apiPost('/api/launch?id=' + encodeURIComponent(id));
-        showToast(`✓ "${name || id}" servisi başlatıldı`);
+        showToast(`"${name || id}" servisi başlatıldı`);
         loadServices();
       } catch (err) {
         showToast('Hata: ' + err.message, true);
@@ -1305,7 +1700,7 @@
     async function sweepZombies() {
       try {
         const res = await apiPost('/api/sweep-zombies');
-        showToast(`✓ ${res.swept_count || 0} adet zombi servis temizlendi`);
+        showToast(`${res.swept_count || 0} adet zombi servis temizlendi`);
         loadServices();
       } catch (err) {
         showToast('Zombi temizleme hatası: ' + err.message, true);
@@ -1315,20 +1710,20 @@
     async function replayExchange(e, id) {
       if (e) e.stopPropagation();
       try {
-        const ex = allExchanges.find(x => x.id === id);
+        const ex = exchanges.find(x => x.id === id);
         const method = (ex && ((ex.req && ex.req.method) || ex.method) || '').toUpperCase();
         const isNonIdempotent = ['POST', 'PUT', 'PATCH', 'DELETE'].includes(method);
         let confirmParam = '';
         const extraHeaders = {};
         if (isNonIdempotent) {
-          const ok = window.confirm(`Bu istek ${method} metodunu kullanıyor ve sunucu tarafında veri değişikliğine (yan etkilere) yol açabilir.\n\nTekrarlamak (replay) istediğinize emin misiniz?`);
+          const ok = window.confirm(`Bu istek ${method} metodunu kullanıyor ve veri değişikliğine yol açabilir.\n\nTekrarlamak (replay) istediğinize emin misiniz?`);
           if (!ok) return;
           confirmParam = '&confirm=true';
           extraHeaders['X-Confirm-Replay'] = 'true';
         }
         showToast('İstek tekrarlanıyor...');
         const res = await apiPost('/api/replay?id=' + encodeURIComponent(id) + confirmParam, null, extraHeaders);
-        showToast(`✓ İstek başarıyla tekrarlandı (HTTP ${res.resp ? res.resp.status_code : 200})`);
+        showToast(`İstek başarıyla tekrarlandı (HTTP ${res.resp ? res.resp.status_code : 200})`);
         loadExchanges();
       } catch (err) {
         showToast('Replay hatası: ' + err.message, true);
@@ -1366,21 +1761,13 @@
       const ex = exchanges.find(x => x.id === id);
       if (!ex) return;
       const cmd = buildCurl(ex);
-      navigator.clipboard.writeText(cmd).then(() => {
-        showToast('✓ cURL komutu panoya kopyalandı');
-      }).catch(() => {
-        showToast('Kopyalama başarısız oldu', true);
-      });
+      copyToClipboard(cmd, 'cURL komutu panoya kopyalandı');
     }
 
     function copyDrawerCurl() {
       if (!currentExchange) return;
       const cmd = buildCurl(currentExchange);
-      navigator.clipboard.writeText(cmd).then(() => {
-        showToast('✓ cURL komutu panoya kopyalandı');
-      }).catch(() => {
-        showToast('Kopyalama başarısız oldu', true);
-      });
+      copyToClipboard(cmd, 'cURL komutu panoya kopyalandı');
     }
 
     function replayDrawerExchange() {
@@ -1460,7 +1847,7 @@
       document.getElementById('drawer-tab-response').style.display = tab === 'response' ? 'block' : 'none';
       document.getElementById('drawer-tab-diff').style.display = tab === 'diff' ? 'block' : 'none';
 
-      const btns = document.querySelectorAll('.drawer-tabs .tab-btn');
+      const btns = document.querySelectorAll('.drawer-tabs .tab-pill');
       btns[0].classList.toggle('active', tab === 'request');
       btns[1].classList.toggle('active', tab === 'response');
       btns[2].classList.toggle('active', tab === 'diff');
@@ -1471,8 +1858,8 @@
     }
 
     function toggleErrorFilter() {
-      onlyErrors = document.getElementById('filter-errors').checked;
-      renderExchanges();
+      const errCheck = document.getElementById('filter-errors');
+      setTapFilter(errCheck && errCheck.checked ? 'errors' : 'all');
     }
 
     function clearExchanges() {
@@ -1574,7 +1961,13 @@
 
     // Keyboard shortcuts
     document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape') closeDrawer();
+      if (e.key === 'Escape') {
+        closeDrawer();
+      } else if (e.key === '/' && document.activeElement.tagName !== 'INPUT') {
+        e.preventDefault();
+        const searchInput = document.getElementById('service-search');
+        if (searchInput) searchInput.focus();
+      }
     });
 
     // Boot
